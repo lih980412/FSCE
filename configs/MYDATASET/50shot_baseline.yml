@@ -1,0 +1,42 @@
+_BASE_: "D:/UserD/Li/FSCE-1/configs/Base-RCNN-FPN.yaml"
+
+MODEL:
+  MASK_ON: False
+  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/mydataset/baseline/R_101_FPN_baseline/model.pth"
+  RESNETS:
+    DEPTH: 101
+
+  BACKBONE:
+    FREEZE: True
+#    FREEZE_AT: 5
+
+  PROPOSAL_GENERATOR:
+    FREEZE: True
+  RPN:
+    POST_NMS_TOPK_TRAIN: 2000
+
+  ROI_HEADS:
+    NUM_CLASSES: 5
+    OUTPUT_LAYER: "CosineSimOutputLayers"
+    FREEZE_FEAT: True
+    BATCH_SIZE_PER_IMAGE: 128 # do increased positive fraction help? Yes, it does.
+
+DATASETS:
+  TRAIN: ('custom1_trainval_all_50shot',)
+  TEST: ('custom1_val_novel',)
+
+SOLVER:
+  IMS_PER_BATCH: 6
+  BASE_LR: 0.001
+  GAMMA: 0.3
+  STEPS: (20000,)
+  MAX_ITER: 30000
+  CHECKPOINT_PERIOD: 5000
+  WARMUP_ITERS: 200
+
+TEST:
+  AUG:
+    ENABLED: True
+  EVAL_PERIOD: 5000
+
+OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset/baseline/R_101_FPN_novel"

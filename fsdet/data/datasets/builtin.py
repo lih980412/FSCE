@@ -22,6 +22,7 @@ import os
 from fsdet.data import MetadataCatalog
 from .register_coco import register_coco_instances
 from .meta_coco import register_meta_coco
+from .meta_mydateset import register_meta_mydateset
 from .lvis import register_lvis_instances
 from .meta_lvis import register_meta_lvis
 from .pascal_voc import register_pascal_voc
@@ -127,7 +128,7 @@ def register_all_custom1(root=r"D:\UserD\Li\FSCE-1\datasets"):
                 METASPLITS.append((name, "my_dataset_split/image", ""))
 
     for name, imgdir, annofile in METASPLITS:
-        register_meta_coco(
+        register_meta_mydateset(
             name,
             _get_builtin_metadata("custom1_fewshot"),
             os.path.join(root, imgdir),

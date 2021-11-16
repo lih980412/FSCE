@@ -2,7 +2,7 @@ _BASE_: "D:/UserD/Li/FSCE-1/configs/Base-RCNN-FPN.yaml"
 
 MODEL:
   MASK_ON: False
-  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/mydataset/baseline/R_101_FPN_novel/model_final.pth"
+  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/mydataset/50-shot/R_101_FPN_before_ft_all/model_reset_combine.pth"
   RESNETS:
     DEPTH: 101
 
@@ -36,8 +36,9 @@ MODEL:
 INPUT:
   MIN_SIZE_TRAIN: (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800)
   MIN_SIZE_TEST: 800
-  CROP:
-    ENABLED: True
+  USE_TRANSFORM_AUG: True
+#  CROP:
+#    ENABLED: True
 
 
 DATASETS:
@@ -58,4 +59,4 @@ TEST:
     ENABLED: True
   EVAL_PERIOD: 5000
 
-OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset/baseline/R_101_FPN_FSCE"
+OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset/50-shot/R_101_FPN_ft_all"

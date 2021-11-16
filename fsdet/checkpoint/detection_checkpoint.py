@@ -58,4 +58,3 @@ class DetectionCheckpointer(Checkpointer):
             checkpoint["model"] = model_state_dict
         # for non-caffe2 models, use standard ways to load it
         super()._load_model(checkpoint)
-

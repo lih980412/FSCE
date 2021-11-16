@@ -33,6 +33,7 @@ from fsdet.evaluation import (
     LVISEvaluator,
     PascalVOCDetectionEvaluator,
     verify_results,
+    NewDatasetEvaluator,
 )
 
 # from fsdet.data.dataset_mapper import AlbumentationMapper
@@ -58,6 +59,9 @@ class Trainer(DefaultTrainer):
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
         evaluator_list = []
         evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
+        if evaluator_type == "mydateset":
+            # return NewDatasetEvaluator(dataset_name)
+            evaluator_list.append(NewDatasetEvaluator(dataset_name, cfg, True, output_folder))
         if evaluator_type == "coco":
             # mydataset
             # COCOEvaluator(dataset_name, cfg, distributed=False, output_dir=output_folder)

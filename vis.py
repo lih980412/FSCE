@@ -4,8 +4,8 @@ import cv2
 import json
 
 if __name__ == "__main__":
-    ann_file = r'D:\UserD\Li\FSCE-1\datasets\my_dataset\annotations\instances_val.json'
-    jpg_dir = r'D:\UserD\Li\FSCE-1\datasets\my_dataset\image'
+    ann_file = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_split\annotations\instances_train.json'
+    jpg_dir = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_split\image'
 
 
     with open(ann_file, "r") as f:

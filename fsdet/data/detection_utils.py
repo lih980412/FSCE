@@ -347,8 +347,8 @@ def build_transform_gen(cfg, is_train):
         if cfg.INPUT.USE_TRANSFORM_AUG:
             # Newer detectron2 has a RandomApply https://github.com/facebookresearch/detectron2/blob/master/detectron2/data/transforms/augmentation_impl.py
             # currently, every augmentation is about to happen definitely
-            # tfm_gens.append(T.RandomSaltpepper)
-            # tfm_gens.append(T.RandomGaussian)
+            # tfm_gens.append(T.RandomSaltpepper(0.5, 0.000000001))
+            # tfm_gens.append(T.RandomGaussian(0.5, 0, 0.006))
             tfm_gens.append(T.RandomBrightness(0.85, 1.15))
             tfm_gens.append(T.RandomContrast(0.85, 1.15))
             tfm_gens.append(T.RandomSaturation(0.85, 1.15))

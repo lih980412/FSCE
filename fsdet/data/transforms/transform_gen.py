@@ -179,7 +179,7 @@ class RandomGaussian(TransformGen):
     TODO Vertical flip to be implemented.
     """
 
-    def __init__(self, mean=0, sigma=0.006):
+    def __init__(self, prob=0.5, mean=0, sigma=0.006):
         """
         Args:
             prob (float): probability of saltpepper.

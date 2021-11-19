@@ -20,7 +20,7 @@ DATASETS:
   TRAIN: ('custom1_train',)
   TEST: ('custom1_val',)
 SOLVER:
-  IMS_PER_BATCH: 16
+  IMS_PER_BATCH: 8
   STEPS: (10000, )
   CHECKPOINT_PERIOD: 5000
   MAX_ITER: 20000

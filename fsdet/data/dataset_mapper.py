@@ -235,494 +235,494 @@ class AlbumentationMapper:
         with open(arg) as f:
             return A.from_dict(json.load(f))
 
-# 21.10.24 Mosaic增强
-from matplotlib.colors import rgb_to_hsv, hsv_to_rgb
-from PIL import ImageDraw
-from PIL import Image
-import numpy as np
-import json, os
-import cv2
-
-def rand(a=0, b=1):
-    return np.random.rand() * (b - a) + a
-def merge_bboxes(bboxes, cutx, cuty):
-    merge_bbox = []
-    for i in range(len(bboxes)):
-        for box in bboxes[i]:
-            tmp_box = []
-            x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
-
-            if i == 0:
-                if y1 > cuty or x1 > cutx:
-                    continue
-                if y2 >= cuty and y1 <= cuty:
-                    y2 = cuty
-                    if y2 - y1 < 5:
-                        continue
-                if x2 >= cutx and x1 <= cutx:
-                    x2 = cutx
-                    if x2 - x1 < 5:
-                        continue
-
-            if i == 1:
-                if y2 < cuty or x1 > cutx:
-                    continue
-
-                if y2 >= cuty and y1 <= cuty:
-                    y1 = cuty
-                    if y2 - y1 < 5:
-                        continue
-
-                if x2 >= cutx and x1 <= cutx:
-                    x2 = cutx
-                    if x2 - x1 < 5:
-                        continue
-
-            if i == 2:
-                if y2 < cuty or x2 < cutx:
-                    continue
-
-                if y2 >= cuty and y1 <= cuty:
-                    y1 = cuty
-                    if y2 - y1 < 5:
-                        continue
-
-                if x2 >= cutx and x1 <= cutx:
-                    x1 = cutx
-                    if x2 - x1 < 5:
-                        continue
-
-            if i == 3:
-                if y1 > cuty or x2 < cutx:
-                    continue
-
-                if y2 >= cuty and y1 <= cuty:
-                    y2 = cuty
-                    if y2 - y1 < 5:
-                        continue
-
-                if x2 >= cutx and x1 <= cutx:
-                    x1 = cutx
-                    if x2 - x1 < 5:
-                        continue
-
-            tmp_box.append(x1)
-            tmp_box.append(y1)
-            tmp_box.append(x2)
-            tmp_box.append(y2)
-            tmp_box.append(box[-1])
-            merge_bbox.append(tmp_box)
-    return merge_bbox
-def cvtColor(image):
-    if len(np.shape(image)) == 3 and np.shape(image)[2] == 3:
-        return image
-    else:
-        image = image.convert('RGB')
-        return image
-
-'''not work'''
-def get_random_data_with_Mosaic(annotation_line, image_root, input_shape=None, max_boxes=100, hue=.1, sat=1.5, val=1.5):
-    with open(annotation_line, "r") as f:
-        p = json.load(f)
-        p_images = p["images"]
-        p_ann = p["annotations"]
-
-    for i in range(len(p_ann)):
-        p_ann[i]["bbox"].append(p_ann[i]["category_id"])
-        p_ann[i]["bbox"] = list(map(int, p_ann[i]["bbox"]))
-
-    j = 0
-    box = []
-    for i in range(0, len(p_images)):
-        temp = []
-        while j < len(p_ann) and p_ann[j]["image_id"] == p_images[i]["id"]:
-            temp.append(p_ann[j]["bbox"])
-            temp_np = np.array(temp)
-            j += 1
-        box.append(temp_np)
-
-    h, w = p_images[0]["height"], p_images[0]["width"]
-    min_offset_x = rand(0.25, 0.75)
-    min_offset_y = rand(0.25, 0.75)
-
-    nws = [int(w * rand(0.4, 1)), int(w * rand(0.4, 1)), int(w * rand(0.4, 1)),
-           int(w * rand(0.4, 1))]
-    nhs = [int(h * rand(0.4, 1)), int(h * rand(0.4, 1)), int(h * rand(0.4, 1)),
-           int(h * rand(0.4, 1))]
-
-    place_x = [int(w * min_offset_x) - nws[0], int(w * min_offset_x) - nws[1], int(w * min_offset_x),
-               int(w * min_offset_x)]
-    place_y = [int(h * min_offset_y) - nhs[0], int(h * min_offset_y), int(h * min_offset_y),
-               int(h * min_offset_y) - nhs[3]]
-
-    image_datas = []
-    box_datas = []
-    index = 0
-    for i in range(0, 4):
-        image_name = p_images[i]["file_name"]
-
-        image_path = os.path.join(image_root, image_name)
-        image = Image.open(image_path)
-        image = image.convert("RGB")
-        # image = image.resize()
-
-        image1 = cv2.imread(image_path)
-        # cv2.imshow("image"+str(i), image1)
-        image1 = cv2.rectangle(image1, (p_ann[i]["bbox"][0], p_ann[i]["bbox"][1]),
-                               (p_ann[i]["bbox"][0] + p_ann[i]["bbox"][2], p_ann[i]["bbox"][1] + p_ann[i]["bbox"][3]),
-                               (0, 255, 255), 2)
-        cv2.imshow("draw" + str(i), image1)
-
-        # 图片的大小
-        iw, ih = image.size
-        # 保存框的位置
-
-        # 是否翻转图片
-        flip = rand() < .5
-        if flip and len(box[i]) > 0:
-            image = image.transpose(Image.FLIP_LEFT_RIGHT)
-            box[i][:, [0, 2]] = iw - box[i][:, [2, 0]]
-
-        nw = nws[index]
-        nh = nhs[index]
-        image = image.resize((nw, nh), Image.BICUBIC)
-
-        # 将图片进行放置，分别对应四张分割图片的位置
-        dx = place_x[index]
-        dy = place_y[index]
-        new_image = Image.new('RGB', (w, h), (128, 128, 128))
-        new_image.paste(image, (dx, dy))
-        image_data = np.array(new_image)
-
-        index = index + 1
-        box_data = []
-        # 对box进行重新处理
-        if len(box[i]) > 0:
-            np.random.shuffle(box[i])
-            box[i][:, [0, 2]] = box[i][:, [0, 2]] * nw / iw + dx
-            box[i][:, [1, 3]] = box[i][:, [1, 3]] * nh / ih + dy
-            box[i][:, 0:2][box[i][:, 0:2] < 0] = 0
-            box[i][:, 2][box[i][:, 2] > w] = w
-            box[i][:, 3][box[i][:, 3] > h] = h
-            box_w = box[i][:, 2] - box[i][:, 0]
-            box_h = box[i][:, 3] - box[i][:, 1]
-            box[i] = box[i][np.logical_and(box_w > 1, box_h > 1)]
-            box_data = np.zeros((len(box[i]), 5))
-            box_data[:len(box[i])] = box[i]
-
-        image_datas.append(image_data)
-        box_datas.append(box_data)
-
-    # 将图片分割，放在一起
-    cutx = int(w * min_offset_x)
-    cuty = int(h * min_offset_y)
-
-    new_image = np.zeros([h, w, 3])
-    new_image[:cuty, :cutx, :] = image_datas[0][:cuty, :cutx, :]
-    new_image[cuty:, :cutx, :] = image_datas[1][cuty:, :cutx, :]
-    new_image[cuty:, cutx:, :] = image_datas[2][cuty:, cutx:, :]
-    new_image[:cuty, cutx:, :] = image_datas[3][:cuty, cutx:, :]
-
-    # 进行色域变换
-    hue = rand(-hue, hue)
-    sat = rand(1, sat) if rand() < .5 else 1 / rand(1, sat)
-    val = rand(1, val) if rand() < .5 else 1 / rand(1, val)
-    x = cv2.cvtColor(np.array(new_image / 255, np.float32), cv2.COLOR_RGB2HSV)
-    x[..., 0] += hue * 360
-    x[..., 0][x[..., 0] > 1] -= 1
-    x[..., 0][x[..., 0] < 0] += 1
-    x[..., 1] *= sat
-    x[..., 2] *= val
-    x[x[:, :, 0] > 360, 0] = 360
-    x[:, :, 1:][x[:, :, 1:] > 1] = 1
-    x[x < 0] = 0
-    new_image = cv2.cvtColor(x, cv2.COLOR_HSV2RGB) * 255
-
-    # 对框进行进一步的处理
-    new_boxes = merge_bboxes(box_datas, cutx, cuty)
-
-    return new_image, new_boxes
-
-'''worked'''
-def get_random_data1(annotation_line, input_shape=None, random=True, hue=.1, sat=1.5, val=1.5, proc_img=True, image_root=None):
-    '''random preprocessing for real-time data augmentation'''
-
-    with open(annotation_line, "r") as f:
-        p = json.load(f)
-        p_images = p["images"]
-        p_ann = p["annotations"]
-
-    for i in range(len(p_ann)):
-        p_ann[i]["bbox"].append(p_ann[i]["category_id"])
-        p_ann[i]["bbox"] = list(map(int, p_ann[i]["bbox"]))
-
-    j = 0
-    box = []
-    for i in range(0, len(p_images)):
-        temp = []
-        while j < len(p_ann) and p_ann[j]["image_id"] == p_images[i]["id"]:
-            temp.append(p_ann[j]["bbox"])
-            temp_np = np.array(temp)
-            j += 1
-        box.append(temp_np)
-
-    h, w = (p_images[0]["height"], p_images[0]["width"])
-    min_offset_x = 0.4
-    min_offset_y = 0.4
-    scale_low = 1 - min(min_offset_x, min_offset_y)
-    scale_high = scale_low + 0.2
-    image_datas = []
-    box_datas = []
-    index = 0
-    place_x = [0, 0, int(w * min_offset_x), int(w * min_offset_x)]
-    place_y = [0, int(h * min_offset_y), int(w * min_offset_y), 0]
-
-    for i in range(0, 4):
-        box[i][:, [2]] = box[i][:, [0]] + box[i][:, [2]]
-        box[i][:, [3]] = box[i][:, [1]] + box[i][:, [3]]
-        image_name = p_images[i]["file_name"]
-
-        image_path = os.path.join(image_root, image_name)
-        image = Image.open(image_path)
-        image = image.convert("RGB")
-        # image = image.resize()
-
-        image1 = cv2.imread(image_path)
-        # # cv2.imshow("image"+str(i), image1)
-        # image1 = cv2.rectangle(image1, (p_ann[i]["bbox"][0], p_ann[i]["bbox"][1]),
-        #                        (p_ann[i]["bbox"][0] + p_ann[i]["bbox"][2], p_ann[i]["bbox"][1] + p_ann[i]["bbox"][3]),
-        #                        (0, 255, 255), 2)
-        for j in range(len(box[i])):
-            image1 = cv2.rectangle(image1, (box[i][j][0], box[i][j][1]), (box[i][j][2], box[i][j][3]), (0, 255, 255), 2)
-        cv2.imshow("draw" + str(i), image1)
-
-        # 图片的大小
-        iw, ih = image.size
-        # 保存框的位置
-
-        # image.save(str(index)+".jpg")
-        # 是否翻转图片
-        flip = rand() < .5
-        if flip and len(box[i]) > 0:
-            image = image.transpose(Image.FLIP_LEFT_RIGHT)
-            box[i][:, [0, 2]] = iw - box[i][:, [2, 0]]
-
-        # 对输入进来的图片进行缩放
-        new_ar = w / h
-        scale = rand(scale_low, scale_high)
-        if new_ar < 1:
-            nh = int(scale * h)
-            nw = int(nh * new_ar)
-        else:
-            nw = int(scale * w)
-            nh = int(nw / new_ar)
-        image = image.resize((nw, nh), Image.BICUBIC)
-
-        # 进行色域变换
-        hue = rand(-hue, hue)
-        sat = rand(1, sat) if rand() < .5 else 1 / rand(1, sat)
-        val = rand(1, val) if rand() < .5 else 1 / rand(1, val)
-        x = rgb_to_hsv(np.array(image) / 255.)
-        x[..., 0] += hue
-        x[..., 0][x[..., 0] > 1] -= 1
-        x[..., 0][x[..., 0] < 0] += 1
-        x[..., 1] *= sat
-        x[..., 2] *= val
-        x[x > 1] = 1
-        x[x < 0] = 0
-        image = hsv_to_rgb(x)
-
-        # image = np.array(image) / 255.
-
-        image = Image.fromarray((image * 255).astype(np.uint8))
-        # 将图片进行放置，分别对应四张分割图片的位置
-        dx = place_x[index]
-        dy = place_y[index]
-        new_image = Image.new('RGB', (w, h), (128, 128, 128))
-        new_image.paste(image, (dx, dy))
-        image_data = np.array(new_image) / 255
-        # Image.fromarray((image_data*255).astype(np.uint8)).save(str(index)+"distort.jpg")
-        index = index + 1
-        box_data = []
-        # 对box进行重新处理
-
-        if len(box[i]) > 0:
-            # np.random.shuffle(box[i])
-            box[i][:, [0, 2]] = box[i][:, [0, 2]] * nw / iw + dx
-            box[i][:, [1, 3]] = box[i][:, [1, 3]] * nh / ih + dy
-            box[i][:, 0:2][box[i][:, 0:2] < 0] = 0
-            box[i][:, 2][box[i][:, 2] > w] = w
-            box[i][:, 3][box[i][:, 3] > h] = h
-            box_w = abs(box[i][:, 2] - box[i][:, 0])
-            box_h = abs(box[i][:, 3] - box[i][:, 1])
-            box[i] = box[i][np.logical_and(box_w > 1, box_h > 1)]
-            box_data = np.zeros((len(box[i]), 5))
-            box_data[:len(box[i])] = box[i]
-        print(i)
-        image_datas.append(image_data)
-        box_datas.append(box_data)
-        print(box_datas)
-
-        img = Image.fromarray((image_data * 255).astype(np.uint8))
-        for j in range(len(box_data)):
-            thickness = 3
-            left, top, right, bottom = box_data[j][0:4]
-            draw = ImageDraw.Draw(img)
-            for i in range(thickness):
-                draw.rectangle([left + i, top + i, right - i, bottom - i], outline=(255, 255, 255))
-
-        # img.show()
-
-    # 将图片分割，放在一起
-    cutx = np.random.randint(int(w * min_offset_x), int(w * (1 - min_offset_x)))
-    cuty = np.random.randint(int(h * min_offset_y), int(h * (1 - min_offset_y)))
-
-    new_image = np.zeros([h, w, 3])
-    new_image[:cuty, :cutx, :] = image_datas[0][:cuty, :cutx, :]
-    new_image[cuty:, :cutx, :] = image_datas[1][cuty:, :cutx, :]
-    new_image[cuty:, cutx:, :] = image_datas[2][cuty:, cutx:, :]
-    new_image[:cuty, cutx:, :] = image_datas[3][:cuty, cutx:, :]
-
-    # 对框进行进一步的处理
-    new_boxes = merge_bboxes(box_datas, cutx, cuty)
-
-    return new_image, new_boxes
-
-'''Original'''
-def get_random_data(annotation_line, input_shape, random=True, hue=.1, sat=1.5, val=1.5, proc_img=True, image_root=None):
-    '''random preprocessing for real-time data augmentation'''
-    h, w = input_shape
-    min_offset_x = 0.4
-    min_offset_y = 0.4
-    scale_low = 1 - min(min_offset_x, min_offset_y)
-    scale_high = scale_low + 0.2
-
-    image_datas = []
-    box_datas = []
-    index = 0
-
-    place_x = [0, 0, int(w * min_offset_x), int(w * min_offset_x)]
-    place_y = [0, int(h * min_offset_y), int(w * min_offset_y), 0]
-
-    with open(annotation_line, 'r') as f:
-        lines = f.readlines()
-
-        for line in lines:
-            # 每一行进行分割
-            line_content = line.split()
-            # 打开图片
-            image = Image.open(line_content[0])
-            image = image.convert("RGB")
-            # 图片的大小
-            iw, ih = image.size
-            # 保存框的位置
-            box = np.array([np.array(list(map(int, map(float, (box.split(',')))))) for box in line_content[1:]])
-
-            # image.save(str(index)+".jpg")
-            # 是否翻转图片
-            flip = rand() < .5
-            if flip and len(box) > 0:
-                image = image.transpose(Image.FLIP_LEFT_RIGHT)
-                box[:, [0, 2]] = iw - box[:, [2, 0]]
-
-            # 对输入进来的图片进行缩放
-            new_ar = w / h
-            scale = rand(scale_low, scale_high)
-            if new_ar < 1:
-                nh = int(scale * h)
-                nw = int(nh * new_ar)
-            else:
-                nw = int(scale * w)
-                nh = int(nw / new_ar)
-            image = image.resize((nw, nh), Image.BICUBIC)
-
-            # 进行色域变换
-            hue = rand(-hue, hue)
-            sat = rand(1, sat) if rand() < .5 else 1 / rand(1, sat)
-            val = rand(1, val) if rand() < .5 else 1 / rand(1, val)
-            x = rgb_to_hsv(np.array(image) / 255.)
-            x[..., 0] += hue
-            x[..., 0][x[..., 0] > 1] -= 1
-            x[..., 0][x[..., 0] < 0] += 1
-            x[..., 1] *= sat
-            x[..., 2] *= val
-            x[x > 1] = 1
-            x[x < 0] = 0
-            image = hsv_to_rgb(x)
-
-            image = Image.fromarray((image * 255).astype(np.uint8))
-            # 将图片进行放置，分别对应四张分割图片的位置
-            dx = place_x[index]
-            dy = place_y[index]
-            new_image = Image.new('RGB', (w, h), (128, 128, 128))
-            new_image.paste(image, (dx, dy))
-            image_data = np.array(new_image) / 255
-
-            # Image.fromarray((image_data*255).astype(np.uint8)).save(str(index)+"distort.jpg")
-
-            index = index + 1
-            box_data = []
-            # 对box进行重新处理
-            if len(box) > 0:
-                np.random.shuffle(box)
-                box[:, [0, 2]] = box[:, [0, 2]] * nw / iw + dx
-                box[:, [1, 3]] = box[:, [1, 3]] * nh / ih + dy
-                box[:, 0:2][box[:, 0:2] < 0] = 0
-                box[:, 2][box[:, 2] > w] = w
-                box[:, 3][box[:, 3] > h] = h
-                box_w = abs(box[:, 2] - box[:, 0])
-                box_h = abs(box[:, 3] - box[:, 1])
-                box = box[np.logical_and(box_w > 1, box_h > 1)]
-                box_data = np.zeros((len(box), 5))
-                box_data[:len(box)] = box
-
-            image_datas.append(image_data)
-            box_datas.append(box_data)
-
-            img = Image.fromarray((image_data * 255).astype(np.uint8))
-            for j in range(len(box_data)):
-                thickness = 3
-                left, top, right, bottom = box_data[j][0:4]
-                draw = ImageDraw.Draw(img)
-                for i in range(thickness):
-                    draw.rectangle([left + i, top + i, right - i, bottom - i], outline=(255, 255, 255))
-            img.show()
-
-    # 将图片分割，放在一起
-    cutx = np.random.randint(int(w * min_offset_x), int(w * (1 - min_offset_x)))
-    cuty = np.random.randint(int(h * min_offset_y), int(h * (1 - min_offset_y)))
-
-    new_image = np.zeros([h, w, 3])
-    new_image[:cuty, :cutx, :] = image_datas[0][:cuty, :cutx, :]
-    new_image[cuty:, :cutx, :] = image_datas[1][cuty:, :cutx, :]
-    new_image[cuty:, cutx:, :] = image_datas[2][cuty:, cutx:, :]
-    new_image[:cuty, cutx:, :] = image_datas[3][:cuty, cutx:, :]
-
-    # 对框进行进一步的处理
-    new_boxes = merge_bboxes(box_datas, cutx, cuty)
-
-    return new_image, new_boxes
-
-
-if __name__ == "__main__":
-    ann_path = r"D:\UserD\Li\FSCE-1\datasets\cocosplit\seed1\full_box_10shot_horse_trainval.json"
-    # ann_path = r"C:\Users\lenovo\Desktop\1.txt"
-    image_root = r"D:\UserD\Li\FSCE-1\datasets\coco\val2014"
-
-    mosaic_img, mosaic_ann = get_random_data1(ann_path, image_root=image_root)
-    # mosaic_img, mosaic_ann = get_random_data_with_Mosaic(ann_path, image_root)
-
-    # mosaic_img, mosaic_ann = get_random_data(ann_path, (480, 640), image_root=image_root)
-    mosaic_img *= 255.
-    mosaic_img = mosaic_img.astype(np.uint8)
-    print(mosaic_ann)
-    mosaic_img = cv2.cvtColor(mosaic_img, cv2.COLOR_RGB2BGR)
-    cv2.imshow("mosaic_img", mosaic_img)
-    draw_1 = mosaic_img
-    for i in range(len(mosaic_ann)):
-        draw_1 = cv2.rectangle(draw_1, (int(mosaic_ann[i][0]), int(mosaic_ann[i][1])),
-                               (int(mosaic_ann[i][2]), int(mosaic_ann[i][3])),
-                               (0, 255, 255), 2)
-
-    cv2.imshow("draw_1", draw_1)
-    cv2.waitKey(0)
+# # 21.10.24 Mosaic增强
+# from matplotlib.colors import rgb_to_hsv, hsv_to_rgb
+# from PIL import ImageDraw
+# from PIL import Image
+# import numpy as np
+# import json, os
+# import cv2
+#
+# def rand(a=0, b=1):
+#     return np.random.rand() * (b - a) + a
+# def merge_bboxes(bboxes, cutx, cuty):
+#     merge_bbox = []
+#     for i in range(len(bboxes)):
+#         for box in bboxes[i]:
+#             tmp_box = []
+#             x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
+#
+#             if i == 0:
+#                 if y1 > cuty or x1 > cutx:
+#                     continue
+#                 if y2 >= cuty and y1 <= cuty:
+#                     y2 = cuty
+#                     if y2 - y1 < 5:
+#                         continue
+#                 if x2 >= cutx and x1 <= cutx:
+#                     x2 = cutx
+#                     if x2 - x1 < 5:
+#                         continue
+#
+#             if i == 1:
+#                 if y2 < cuty or x1 > cutx:
+#                     continue
+#
+#                 if y2 >= cuty and y1 <= cuty:
+#                     y1 = cuty
+#                     if y2 - y1 < 5:
+#                         continue
+#
+#                 if x2 >= cutx and x1 <= cutx:
+#                     x2 = cutx
+#                     if x2 - x1 < 5:
+#                         continue
+#
+#             if i == 2:
+#                 if y2 < cuty or x2 < cutx:
+#                     continue
+#
+#                 if y2 >= cuty and y1 <= cuty:
+#                     y1 = cuty
+#                     if y2 - y1 < 5:
+#                         continue
+#
+#                 if x2 >= cutx and x1 <= cutx:
+#                     x1 = cutx
+#                     if x2 - x1 < 5:
+#                         continue
+#
+#             if i == 3:
+#                 if y1 > cuty or x2 < cutx:
+#                     continue
+#
+#                 if y2 >= cuty and y1 <= cuty:
+#                     y2 = cuty
+#                     if y2 - y1 < 5:
+#                         continue
+#
+#                 if x2 >= cutx and x1 <= cutx:
+#                     x1 = cutx
+#                     if x2 - x1 < 5:
+#                         continue
+#
+#             tmp_box.append(x1)
+#             tmp_box.append(y1)
+#             tmp_box.append(x2)
+#             tmp_box.append(y2)
+#             tmp_box.append(box[-1])
+#             merge_bbox.append(tmp_box)
+#     return merge_bbox
+# def cvtColor(image):
+#     if len(np.shape(image)) == 3 and np.shape(image)[2] == 3:
+#         return image
+#     else:
+#         image = image.convert('RGB')
+#         return image
+#
+# '''not work'''
+# def get_random_data_with_Mosaic(annotation_line, image_root, input_shape=None, max_boxes=100, hue=.1, sat=1.5, val=1.5):
+#     with open(annotation_line, "r") as f:
+#         p = json.load(f)
+#         p_images = p["images"]
+#         p_ann = p["annotations"]
+#
+#     for i in range(len(p_ann)):
+#         p_ann[i]["bbox"].append(p_ann[i]["category_id"])
+#         p_ann[i]["bbox"] = list(map(int, p_ann[i]["bbox"]))
+#
+#     j = 0
+#     box = []
+#     for i in range(0, len(p_images)):
+#         temp = []
+#         while j < len(p_ann) and p_ann[j]["image_id"] == p_images[i]["id"]:
+#             temp.append(p_ann[j]["bbox"])
+#             temp_np = np.array(temp)
+#             j += 1
+#         box.append(temp_np)
+#
+#     h, w = p_images[0]["height"], p_images[0]["width"]
+#     min_offset_x = rand(0.25, 0.75)
+#     min_offset_y = rand(0.25, 0.75)
+#
+#     nws = [int(w * rand(0.4, 1)), int(w * rand(0.4, 1)), int(w * rand(0.4, 1)),
+#            int(w * rand(0.4, 1))]
+#     nhs = [int(h * rand(0.4, 1)), int(h * rand(0.4, 1)), int(h * rand(0.4, 1)),
+#            int(h * rand(0.4, 1))]
+#
+#     place_x = [int(w * min_offset_x) - nws[0], int(w * min_offset_x) - nws[1], int(w * min_offset_x),
+#                int(w * min_offset_x)]
+#     place_y = [int(h * min_offset_y) - nhs[0], int(h * min_offset_y), int(h * min_offset_y),
+#                int(h * min_offset_y) - nhs[3]]
+#
+#     image_datas = []
+#     box_datas = []
+#     index = 0
+#     for i in range(0, 4):
+#         image_name = p_images[i]["file_name"]
+#
+#         image_path = os.path.join(image_root, image_name)
+#         image = Image.open(image_path)
+#         image = image.convert("RGB")
+#         # image = image.resize()
+#
+#         image1 = cv2.imread(image_path)
+#         # cv2.imshow("image"+str(i), image1)
+#         image1 = cv2.rectangle(image1, (p_ann[i]["bbox"][0], p_ann[i]["bbox"][1]),
+#                                (p_ann[i]["bbox"][0] + p_ann[i]["bbox"][2], p_ann[i]["bbox"][1] + p_ann[i]["bbox"][3]),
+#                                (0, 255, 255), 2)
+#         cv2.imshow("draw" + str(i), image1)
+#
+#         # 图片的大小
+#         iw, ih = image.size
+#         # 保存框的位置
+#
+#         # 是否翻转图片
+#         flip = rand() < .5
+#         if flip and len(box[i]) > 0:
+#             image = image.transpose(Image.FLIP_LEFT_RIGHT)
+#             box[i][:, [0, 2]] = iw - box[i][:, [2, 0]]
+#
+#         nw = nws[index]
+#         nh = nhs[index]
+#         image = image.resize((nw, nh), Image.BICUBIC)
+#
+#         # 将图片进行放置，分别对应四张分割图片的位置
+#         dx = place_x[index]
+#         dy = place_y[index]
+#         new_image = Image.new('RGB', (w, h), (128, 128, 128))
+#         new_image.paste(image, (dx, dy))
+#         image_data = np.array(new_image)
+#
+#         index = index + 1
+#         box_data = []
+#         # 对box进行重新处理
+#         if len(box[i]) > 0:
+#             np.random.shuffle(box[i])
+#             box[i][:, [0, 2]] = box[i][:, [0, 2]] * nw / iw + dx
+#             box[i][:, [1, 3]] = box[i][:, [1, 3]] * nh / ih + dy
+#             box[i][:, 0:2][box[i][:, 0:2] < 0] = 0
+#             box[i][:, 2][box[i][:, 2] > w] = w
+#             box[i][:, 3][box[i][:, 3] > h] = h
+#             box_w = box[i][:, 2] - box[i][:, 0]
+#             box_h = box[i][:, 3] - box[i][:, 1]
+#             box[i] = box[i][np.logical_and(box_w > 1, box_h > 1)]
+#             box_data = np.zeros((len(box[i]), 5))
+#             box_data[:len(box[i])] = box[i]
+#
+#         image_datas.append(image_data)
+#         box_datas.append(box_data)
+#
+#     # 将图片分割，放在一起
+#     cutx = int(w * min_offset_x)
+#     cuty = int(h * min_offset_y)
+#
+#     new_image = np.zeros([h, w, 3])
+#     new_image[:cuty, :cutx, :] = image_datas[0][:cuty, :cutx, :]
+#     new_image[cuty:, :cutx, :] = image_datas[1][cuty:, :cutx, :]
+#     new_image[cuty:, cutx:, :] = image_datas[2][cuty:, cutx:, :]
+#     new_image[:cuty, cutx:, :] = image_datas[3][:cuty, cutx:, :]
+#
+#     # 进行色域变换
+#     hue = rand(-hue, hue)
+#     sat = rand(1, sat) if rand() < .5 else 1 / rand(1, sat)
+#     val = rand(1, val) if rand() < .5 else 1 / rand(1, val)
+#     x = cv2.cvtColor(np.array(new_image / 255, np.float32), cv2.COLOR_RGB2HSV)
+#     x[..., 0] += hue * 360
+#     x[..., 0][x[..., 0] > 1] -= 1
+#     x[..., 0][x[..., 0] < 0] += 1
+#     x[..., 1] *= sat
+#     x[..., 2] *= val
+#     x[x[:, :, 0] > 360, 0] = 360
+#     x[:, :, 1:][x[:, :, 1:] > 1] = 1
+#     x[x < 0] = 0
+#     new_image = cv2.cvtColor(x, cv2.COLOR_HSV2RGB) * 255
+#
+#     # 对框进行进一步的处理
+#     new_boxes = merge_bboxes(box_datas, cutx, cuty)
+#
+#     return new_image, new_boxes
+#
+# '''worked'''
+# def get_random_data1(annotation_line, input_shape=None, random=True, hue=.1, sat=1.5, val=1.5, proc_img=True, image_root=None):
+#     '''random preprocessing for real-time data augmentation'''
+#
+#     with open(annotation_line, "r") as f:
+#         p = json.load(f)
+#         p_images = p["images"]
+#         p_ann = p["annotations"]
+#
+#     for i in range(len(p_ann)):
+#         p_ann[i]["bbox"].append(p_ann[i]["category_id"])
+#         p_ann[i]["bbox"] = list(map(int, p_ann[i]["bbox"]))
+#
+#     j = 0
+#     box = []
+#     for i in range(0, len(p_images)):
+#         temp = []
+#         while j < len(p_ann) and p_ann[j]["image_id"] == p_images[i]["id"]:
+#             temp.append(p_ann[j]["bbox"])
+#             temp_np = np.array(temp)
+#             j += 1
+#         box.append(temp_np)
+#
+#     h, w = (p_images[0]["height"], p_images[0]["width"])
+#     min_offset_x = 0.4
+#     min_offset_y = 0.4
+#     scale_low = 1 - min(min_offset_x, min_offset_y)
+#     scale_high = scale_low + 0.2
+#     image_datas = []
+#     box_datas = []
+#     index = 0
+#     place_x = [0, 0, int(w * min_offset_x), int(w * min_offset_x)]
+#     place_y = [0, int(h * min_offset_y), int(w * min_offset_y), 0]
+#
+#     for i in range(0, 4):
+#         box[i][:, [2]] = box[i][:, [0]] + box[i][:, [2]]
+#         box[i][:, [3]] = box[i][:, [1]] + box[i][:, [3]]
+#         image_name = p_images[i]["file_name"]
+#
+#         image_path = os.path.join(image_root, image_name)
+#         image = Image.open(image_path)
+#         image = image.convert("RGB")
+#         # image = image.resize()
+#
+#         image1 = cv2.imread(image_path)
+#         # # cv2.imshow("image"+str(i), image1)
+#         # image1 = cv2.rectangle(image1, (p_ann[i]["bbox"][0], p_ann[i]["bbox"][1]),
+#         #                        (p_ann[i]["bbox"][0] + p_ann[i]["bbox"][2], p_ann[i]["bbox"][1] + p_ann[i]["bbox"][3]),
+#         #                        (0, 255, 255), 2)
+#         for j in range(len(box[i])):
+#             image1 = cv2.rectangle(image1, (box[i][j][0], box[i][j][1]), (box[i][j][2], box[i][j][3]), (0, 255, 255), 2)
+#         cv2.imshow("draw" + str(i), image1)
+#
+#         # 图片的大小
+#         iw, ih = image.size
+#         # 保存框的位置
+#
+#         # image.save(str(index)+".jpg")
+#         # 是否翻转图片
+#         flip = rand() < .5
+#         if flip and len(box[i]) > 0:
+#             image = image.transpose(Image.FLIP_LEFT_RIGHT)
+#             box[i][:, [0, 2]] = iw - box[i][:, [2, 0]]
+#
+#         # 对输入进来的图片进行缩放
+#         new_ar = w / h
+#         scale = rand(scale_low, scale_high)
+#         if new_ar < 1:
+#             nh = int(scale * h)
+#             nw = int(nh * new_ar)
+#         else:
+#             nw = int(scale * w)
+#             nh = int(nw / new_ar)
+#         image = image.resize((nw, nh), Image.BICUBIC)
+#
+#         # 进行色域变换
+#         hue = rand(-hue, hue)
+#         sat = rand(1, sat) if rand() < .5 else 1 / rand(1, sat)
+#         val = rand(1, val) if rand() < .5 else 1 / rand(1, val)
+#         x = rgb_to_hsv(np.array(image) / 255.)
+#         x[..., 0] += hue
+#         x[..., 0][x[..., 0] > 1] -= 1
+#         x[..., 0][x[..., 0] < 0] += 1
+#         x[..., 1] *= sat
+#         x[..., 2] *= val
+#         x[x > 1] = 1
+#         x[x < 0] = 0
+#         image = hsv_to_rgb(x)
+#
+#         # image = np.array(image) / 255.
+#
+#         image = Image.fromarray((image * 255).astype(np.uint8))
+#         # 将图片进行放置，分别对应四张分割图片的位置
+#         dx = place_x[index]
+#         dy = place_y[index]
+#         new_image = Image.new('RGB', (w, h), (128, 128, 128))
+#         new_image.paste(image, (dx, dy))
+#         image_data = np.array(new_image) / 255
+#         # Image.fromarray((image_data*255).astype(np.uint8)).save(str(index)+"distort.jpg")
+#         index = index + 1
+#         box_data = []
+#         # 对box进行重新处理
+#
+#         if len(box[i]) > 0:
+#             # np.random.shuffle(box[i])
+#             box[i][:, [0, 2]] = box[i][:, [0, 2]] * nw / iw + dx
+#             box[i][:, [1, 3]] = box[i][:, [1, 3]] * nh / ih + dy
+#             box[i][:, 0:2][box[i][:, 0:2] < 0] = 0
+#             box[i][:, 2][box[i][:, 2] > w] = w
+#             box[i][:, 3][box[i][:, 3] > h] = h
+#             box_w = abs(box[i][:, 2] - box[i][:, 0])
+#             box_h = abs(box[i][:, 3] - box[i][:, 1])
+#             box[i] = box[i][np.logical_and(box_w > 1, box_h > 1)]
+#             box_data = np.zeros((len(box[i]), 5))
+#             box_data[:len(box[i])] = box[i]
+#         print(i)
+#         image_datas.append(image_data)
+#         box_datas.append(box_data)
+#         print(box_datas)
+#
+#         img = Image.fromarray((image_data * 255).astype(np.uint8))
+#         for j in range(len(box_data)):
+#             thickness = 3
+#             left, top, right, bottom = box_data[j][0:4]
+#             draw = ImageDraw.Draw(img)
+#             for i in range(thickness):
+#                 draw.rectangle([left + i, top + i, right - i, bottom - i], outline=(255, 255, 255))
+#
+#         # img.show()
+#
+#     # 将图片分割，放在一起
+#     cutx = np.random.randint(int(w * min_offset_x), int(w * (1 - min_offset_x)))
+#     cuty = np.random.randint(int(h * min_offset_y), int(h * (1 - min_offset_y)))
+#
+#     new_image = np.zeros([h, w, 3])
+#     new_image[:cuty, :cutx, :] = image_datas[0][:cuty, :cutx, :]
+#     new_image[cuty:, :cutx, :] = image_datas[1][cuty:, :cutx, :]
+#     new_image[cuty:, cutx:, :] = image_datas[2][cuty:, cutx:, :]
+#     new_image[:cuty, cutx:, :] = image_datas[3][:cuty, cutx:, :]
+#
+#     # 对框进行进一步的处理
+#     new_boxes = merge_bboxes(box_datas, cutx, cuty)
+#
+#     return new_image, new_boxes
+#
+# '''Original'''
+# def get_random_data(annotation_line, input_shape, random=True, hue=.1, sat=1.5, val=1.5, proc_img=True, image_root=None):
+#     '''random preprocessing for real-time data augmentation'''
+#     h, w = input_shape
+#     min_offset_x = 0.4
+#     min_offset_y = 0.4
+#     scale_low = 1 - min(min_offset_x, min_offset_y)
+#     scale_high = scale_low + 0.2
+#
+#     image_datas = []
+#     box_datas = []
+#     index = 0
+#
+#     place_x = [0, 0, int(w * min_offset_x), int(w * min_offset_x)]
+#     place_y = [0, int(h * min_offset_y), int(w * min_offset_y), 0]
+#
+#     with open(annotation_line, 'r') as f:
+#         lines = f.readlines()
+#
+#         for line in lines:
+#             # 每一行进行分割
+#             line_content = line.split()
+#             # 打开图片
+#             image = Image.open(line_content[0])
+#             image = image.convert("RGB")
+#             # 图片的大小
+#             iw, ih = image.size
+#             # 保存框的位置
+#             box = np.array([np.array(list(map(int, map(float, (box.split(',')))))) for box in line_content[1:]])
+#
+#             # image.save(str(index)+".jpg")
+#             # 是否翻转图片
+#             flip = rand() < .5
+#             if flip and len(box) > 0:
+#                 image = image.transpose(Image.FLIP_LEFT_RIGHT)
+#                 box[:, [0, 2]] = iw - box[:, [2, 0]]
+#
+#             # 对输入进来的图片进行缩放
+#             new_ar = w / h
+#             scale = rand(scale_low, scale_high)
+#             if new_ar < 1:
+#                 nh = int(scale * h)
+#                 nw = int(nh * new_ar)
+#             else:
+#                 nw = int(scale * w)
+#                 nh = int(nw / new_ar)
+#             image = image.resize((nw, nh), Image.BICUBIC)
+#
+#             # 进行色域变换
+#             hue = rand(-hue, hue)
+#             sat = rand(1, sat) if rand() < .5 else 1 / rand(1, sat)
+#             val = rand(1, val) if rand() < .5 else 1 / rand(1, val)
+#             x = rgb_to_hsv(np.array(image) / 255.)
+#             x[..., 0] += hue
+#             x[..., 0][x[..., 0] > 1] -= 1
+#             x[..., 0][x[..., 0] < 0] += 1
+#             x[..., 1] *= sat
+#             x[..., 2] *= val
+#             x[x > 1] = 1
+#             x[x < 0] = 0
+#             image = hsv_to_rgb(x)
+#
+#             image = Image.fromarray((image * 255).astype(np.uint8))
+#             # 将图片进行放置，分别对应四张分割图片的位置
+#             dx = place_x[index]
+#             dy = place_y[index]
+#             new_image = Image.new('RGB', (w, h), (128, 128, 128))
+#             new_image.paste(image, (dx, dy))
+#             image_data = np.array(new_image) / 255
+#
+#             # Image.fromarray((image_data*255).astype(np.uint8)).save(str(index)+"distort.jpg")
+#
+#             index = index + 1
+#             box_data = []
+#             # 对box进行重新处理
+#             if len(box) > 0:
+#                 np.random.shuffle(box)
+#                 box[:, [0, 2]] = box[:, [0, 2]] * nw / iw + dx
+#                 box[:, [1, 3]] = box[:, [1, 3]] * nh / ih + dy
+#                 box[:, 0:2][box[:, 0:2] < 0] = 0
+#                 box[:, 2][box[:, 2] > w] = w
+#                 box[:, 3][box[:, 3] > h] = h
+#                 box_w = abs(box[:, 2] - box[:, 0])
+#                 box_h = abs(box[:, 3] - box[:, 1])
+#                 box = box[np.logical_and(box_w > 1, box_h > 1)]
+#                 box_data = np.zeros((len(box), 5))
+#                 box_data[:len(box)] = box
+#
+#             image_datas.append(image_data)
+#             box_datas.append(box_data)
+#
+#             img = Image.fromarray((image_data * 255).astype(np.uint8))
+#             for j in range(len(box_data)):
+#                 thickness = 3
+#                 left, top, right, bottom = box_data[j][0:4]
+#                 draw = ImageDraw.Draw(img)
+#                 for i in range(thickness):
+#                     draw.rectangle([left + i, top + i, right - i, bottom - i], outline=(255, 255, 255))
+#             img.show()
+#
+#     # 将图片分割，放在一起
+#     cutx = np.random.randint(int(w * min_offset_x), int(w * (1 - min_offset_x)))
+#     cuty = np.random.randint(int(h * min_offset_y), int(h * (1 - min_offset_y)))
+#
+#     new_image = np.zeros([h, w, 3])
+#     new_image[:cuty, :cutx, :] = image_datas[0][:cuty, :cutx, :]
+#     new_image[cuty:, :cutx, :] = image_datas[1][cuty:, :cutx, :]
+#     new_image[cuty:, cutx:, :] = image_datas[2][cuty:, cutx:, :]
+#     new_image[:cuty, cutx:, :] = image_datas[3][:cuty, cutx:, :]
+#
+#     # 对框进行进一步的处理
+#     new_boxes = merge_bboxes(box_datas, cutx, cuty)
+#
+#     return new_image, new_boxes
+#
+#
+# if __name__ == "__main__":
+#     ann_path = r"D:\UserD\Li\FSCE-1\datasets\cocosplit\seed1\full_box_10shot_horse_trainval.json"
+#     # ann_path = r"C:\Users\lenovo\Desktop\1.txt"
+#     image_root = r"D:\UserD\Li\FSCE-1\datasets\coco\val2014"
+#
+#     mosaic_img, mosaic_ann = get_random_data1(ann_path, image_root=image_root)
+#     # mosaic_img, mosaic_ann = get_random_data_with_Mosaic(ann_path, image_root)
+#
+#     # mosaic_img, mosaic_ann = get_random_data(ann_path, (480, 640), image_root=image_root)
+#     mosaic_img *= 255.
+#     mosaic_img = mosaic_img.astype(np.uint8)
+#     print(mosaic_ann)
+#     mosaic_img = cv2.cvtColor(mosaic_img, cv2.COLOR_RGB2BGR)
+#     cv2.imshow("mosaic_img", mosaic_img)
+#     draw_1 = mosaic_img
+#     for i in range(len(mosaic_ann)):
+#         draw_1 = cv2.rectangle(draw_1, (int(mosaic_ann[i][0]), int(mosaic_ann[i][1])),
+#                                (int(mosaic_ann[i][2]), int(mosaic_ann[i][3])),
+#                                (0, 255, 255), 2)
+#
+#     cv2.imshow("draw_1", draw_1)
+#     cv2.waitKey(0)

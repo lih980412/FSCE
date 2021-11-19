@@ -144,6 +144,23 @@ def find_top_rpn_proposals(
     return results
 
 
+def BCEFocalLoss(predict, target, gamma=2, alpha=0.25, reduction='sum'):
+
+
+
+    pt = torch.sigmoid(predict)  # sigmoid获取概率
+    # 在原始ce上增加动态权重因子，注意alpha的写法，下面多类时不能这样使用
+    pt = torch.clamp(pt, min=1e-8, max=1 - 1e-8)
+    loss = - alpha * (1 - pt) ** gamma * target * torch.log(pt) - (1 - alpha) * pt ** gamma * (
+            1 - target) * torch.log(1 - pt)
+
+    if reduction == 'mean':
+        loss = torch.mean(loss)
+    elif reduction == 'sum':
+        loss = torch.sum(loss)
+    return loss
+
+
 def rpn_losses(
     gt_objectness_logits,
     gt_anchor_deltas,
@@ -175,11 +192,13 @@ def rpn_losses(
     )
 
     valid_masks = gt_objectness_logits >= 0
-    objectness_loss = F.binary_cross_entropy_with_logits(
-        pred_objectness_logits[valid_masks],
-        gt_objectness_logits[valid_masks].to(torch.float32),
-        reduction="sum",
-    )
+    # objectness_loss = F.binary_cross_entropy_with_logits(
+    #     pred_objectness_logits[valid_masks],
+    #     gt_objectness_logits[valid_masks].to(torch.float32),
+    #     reduction="sum",
+    # )
+
+    objectness_loss = BCEFocalLoss(pred_objectness_logits[valid_masks], gt_objectness_logits[valid_masks].to(torch.float32))
     return objectness_loss, localization_loss
 
 

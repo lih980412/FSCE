@@ -116,6 +116,8 @@ def register_all_custom1(root=r"D:\UserD\Li\FSCE-1\datasets"):
         # ("coco_test_novel", "coco/val2014", "cocosplit/datasplit/5k.json"),
         ("custom1_train_novel", "my_dataset_split/image", "my_dataset_split/annotations/instances_train.json"),
         ("custom1_val_novel", "my_dataset_split/image", "my_dataset_split/annotations/instances_val.json"),
+        ("custom1_train_novel_before", "my_dataset_split_before/image", "my_dataset_split_before/annotations/instances_train.json"),
+        ("custom1_val_novel_before", "my_dataset_split_before/image", "my_dataset_split_before/annotations/instances_val.json"),
 
     ]
 

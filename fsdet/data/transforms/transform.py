@@ -58,8 +58,8 @@ class SaltPepper(Transform):
         self._set_attributes(locals())
 
     def apply_image(self, img, interp=None):
-        X = np.random.randint(self.w, size=(int(self.percetage * self.w * self.h),))
-        Y = np.random.randint(self.h, size=(int(self.percetage * self.w * self.h),))
+        X = np.random.randint(self.w, size=(int(self.w * self.h),))
+        Y = np.random.randint(self.h, size=(int(self.w * self.h),))
         img[Y, X] = np.random.choice([0, 255], size=(int(self.percetage*X*Y),))
         return np.asarray(img)
 

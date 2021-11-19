@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from fvcore.nn import smooth_l1_loss
-
+from fsdet.modeling.focal_loss import BCEFocalLoss
 from fsdet.layers import batched_nms, cat
 from fsdet.structures import Boxes, Instances, pairwise_iou
 from fsdet.utils.events import get_event_storage
@@ -144,21 +144,7 @@ def find_top_rpn_proposals(
     return results
 
 
-def BCEFocalLoss(predict, target, gamma=2, alpha=0.25, reduction='sum'):
 
-
-
-    pt = torch.sigmoid(predict)  # sigmoid获取概率
-    # 在原始ce上增加动态权重因子，注意alpha的写法，下面多类时不能这样使用
-    pt = torch.clamp(pt, min=1e-8, max=1 - 1e-8)
-    loss = - alpha * (1 - pt) ** gamma * target * torch.log(pt) - (1 - alpha) * pt ** gamma * (
-            1 - target) * torch.log(1 - pt)
-
-    if reduction == 'mean':
-        loss = torch.mean(loss)
-    elif reduction == 'sum':
-        loss = torch.sum(loss)
-    return loss
 
 
 def rpn_losses(
@@ -167,6 +153,8 @@ def rpn_losses(
     pred_objectness_logits,
     pred_anchor_deltas,
     smooth_l1_beta,
+    rpn_focal_alpha,
+    rpn_focal_gamma
 ):
     """
     Args:
@@ -198,7 +186,7 @@ def rpn_losses(
     #     reduction="sum",
     # )
 
-    objectness_loss = BCEFocalLoss(pred_objectness_logits[valid_masks], gt_objectness_logits[valid_masks].to(torch.float32))
+    objectness_loss = BCEFocalLoss(pred_objectness_logits[valid_masks], gt_objectness_logits[valid_masks].to(torch.float32), alpha=rpn_focal_alpha, gamma=rpn_focal_gamma)
     return objectness_loss, localization_loss
 
 
@@ -217,6 +205,8 @@ class RPNOutputs(object):
         boundary_threshold=0,
         gt_boxes=None,
         smooth_l1_beta=0.0,
+        rpn_focal_alpha = 0.25,
+        rpn_focal_gamma = 2
     ):
         """
         Args:
@@ -259,6 +249,8 @@ class RPNOutputs(object):
         self.image_sizes = images.image_sizes
         self.boundary_threshold = boundary_threshold            # threshold to remove anchors outside the image
         self.smooth_l1_beta = smooth_l1_beta
+        self.rpn_focal_alpha = rpn_focal_alpha
+        self.rpn_focal_gamma = rpn_focal_gamma
 
     def _get_ground_truth(self):
         """
@@ -404,6 +396,8 @@ class RPNOutputs(object):
             pred_objectness_logits,
             pred_anchor_deltas,
             self.smooth_l1_beta,
+            self.rpn_focal_alpha,
+            self.rpn_focal_gamma
         )
         normalizer = 1.0 / (self.batch_size_per_image * self.num_images)
         loss_cls = objectness_loss * normalizer  # cls: classification loss

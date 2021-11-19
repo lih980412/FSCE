@@ -111,11 +111,15 @@ class ROIHeads(torch.nn.Module):
         self.test_detections_per_img  = cfg.TEST.DETECTIONS_PER_IMAGE
         self.in_features              = cfg.MODEL.ROI_HEADS.IN_FEATURES
         self.num_classes              = cfg.MODEL.ROI_HEADS.NUM_CLASSES
+        self.roi_focal_alpha          = cfg.MODEL.ROI_HEADS.FOCAL_ALPHA
+        self.roi_focal_gamma          = cfg.MODEL.ROI_HEADS.FOCAL_GAMMA
+
         self.proposal_append_gt       = cfg.MODEL.ROI_HEADS.PROPOSAL_APPEND_GT
         self.feature_strides          = {k: v.stride for k, v in input_shape.items()}
         self.feature_channels         = {k: v.channels for k, v in input_shape.items()}
         self.cls_agnostic_bbox_reg    = cfg.MODEL.ROI_BOX_HEAD.CLS_AGNOSTIC_BBOX_REG
         self.smooth_l1_beta           = cfg.MODEL.ROI_BOX_HEAD.SMOOTH_L1_BETA
+
         # fmt: on
 
         # Matcher to assign box proposals to gt boxes
@@ -357,6 +361,9 @@ class Res5ROIHeads(ROIHeads):
             pred_proposal_deltas,
             proposals,
             self.smooth_l1_beta,
+            self.num_classes,
+            self.roi_focal_alpha,
+            self.roi_focal_gamma
         )
 
         if self.training:
@@ -472,6 +479,9 @@ class StandardROIHeads(ROIHeads):
             pred_proposal_deltas,
             proposals,
             self.smooth_l1_beta,
+            self.num_classes,
+            self.roi_focal_alpha,
+            self.roi_focal_gamma
         )
         if self.training:
             return outputs.losses()

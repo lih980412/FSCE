@@ -98,6 +98,8 @@ class RPN(nn.Module):
         self.batch_size_per_image    = cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE
         self.positive_fraction       = cfg.MODEL.RPN.POSITIVE_FRACTION
         self.smooth_l1_beta          = cfg.MODEL.RPN.SMOOTH_L1_BETA
+        self.rpn_focal_alpha         = cfg.MODEL.RPN.FOCAL_ALPHA
+        self.rpn_focal_gamma         = cfg.MODEL.RPN.FOCAL_GAMMA
         self.loss_weight             = cfg.MODEL.RPN.LOSS_WEIGHT
 
         self.cl_head_only            = cfg.MODEL.ROI_BOX_HEAD.CONTRASTIVE_BRANCH.HEAD_ONLY
@@ -159,6 +161,8 @@ class RPN(nn.Module):
             self.boundary_threshold,
             gt_boxes,
             self.smooth_l1_beta,
+            self.rpn_focal_alpha,
+            self.rpn_focal_gamma
         )
 
         if self.training and not self.cl_head_only:

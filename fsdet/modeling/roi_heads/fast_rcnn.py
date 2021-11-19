@@ -4,9 +4,8 @@ import numpy as np
 import torch
 from fvcore.nn import smooth_l1_loss
 from torch import nn
-from torch.autograd import Variable
 from torch.nn import functional as F
-
+from fsdet.modeling.focal_loss import MultiCEFocalLoss
 from fsdet.layers import batched_nms, cat
 from fsdet.structures import Boxes, Instances
 from fsdet.utils.events import get_event_storage
@@ -131,7 +130,7 @@ class FastRCNNOutputs(object):
     """
 
     def __init__(
-        self, box2box_transform, pred_class_logits, pred_proposal_deltas, proposals, smooth_l1_beta
+        self, box2box_transform, pred_class_logits, pred_proposal_deltas, proposals, smooth_l1_beta, class_num, roi_focal_alpha, roi_focal_gamma
     ):
         """
         Args:
@@ -159,6 +158,10 @@ class FastRCNNOutputs(object):
         self.pred_class_logits = pred_class_logits
         self.pred_proposal_deltas = pred_proposal_deltas
         self.smooth_l1_beta = smooth_l1_beta
+        self.class_num = class_num
+        self.roi_focal_alpha = roi_focal_alpha
+        self.roi_focal_gamma = roi_focal_gamma
+
 
         box_type = type(proposals[0].proposal_boxes)
         # cat(..., dim=0) concatenates over all images in the batch
@@ -195,25 +198,7 @@ class FastRCNNOutputs(object):
             storage.put_scalar("fast_rcnn/fg_cls_accuracy", fg_num_accurate / num_fg)
             storage.put_scalar("fast_rcnn/false_negative", num_false_negative / num_fg)
 
-    def MultiCEFocalLoss(self, predict, target, class_num, alpha=None, gamma=2, reduction="mean"):
-        if alpha is None:
-            alpha = Variable(torch.ones(class_num, 1))
-        else:
-            alpha = alpha
-        eps = 1e-7
-        class_mask = F.one_hot(target, class_num)
-        # y_pred = predict.view(predict.size()[0], predict.size()[1])
-        y_pred = F.softmax(predict, dim=1)
-        # y_pred = torch.clamp(y_pred, min=1e-8, max=1 - 1e-8)
-        target = class_mask.view(y_pred.size())
-        ce = -1 * torch.log(y_pred + eps) * target
-        floss = torch.pow((1 - y_pred), gamma) * ce
-        floss = torch.mul(floss, alpha)
-        if reduction == 'mean':
-            loss = floss.sum(1).mean()
-        elif reduction == 'sum':
-            loss = floss.sum(1).sum()
-        return loss
+
 
 
 
@@ -293,7 +278,8 @@ class FastRCNNOutputs(object):
         """
         return {
             # "loss_cls": self.softmax_cross_entropy_loss(),
-            "loss_cls": self.MultiCEFocalLoss(self.pred_class_logits, self.gt_classes, class_num=6, alpha=1),
+            "loss_cls": MultiCEFocalLoss(self.pred_class_logits, self.gt_classes, class_num=self.class_num + 1, alpha=self.roi_focal_alpha, gamma=self.roi_focal_gamma),
+            # "loss_cls": MultiCEFocalLoss(),
             "loss_box_reg": self.smooth_l1_loss(),
         }
 

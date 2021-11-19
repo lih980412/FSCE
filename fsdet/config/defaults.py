@@ -218,6 +218,9 @@ _C.MODEL.RPN.POST_NMS_TOPK_TEST = 1000
 # NMS threshold used on RPN proposals
 _C.MODEL.RPN.NMS_THRESH = 0.7
 
+# focal loss
+_C.MODEL.RPN.FOCAL_ALPHA = 0.25
+_C.MODEL.RPN.FOCAL_GAMMA = 2.
 # ---------------------------------------------------------------------------- #
 # ROI HEADS options
 # ---------------------------------------------------------------------------- #
@@ -245,6 +248,9 @@ _C.MODEL.ROI_HEADS.POSITIVE_FRACTION = 0.25
 # train ROI heads.
 _C.MODEL.ROI_HEADS.PROPOSAL_APPEND_GT = True
 
+# focal loss
+_C.MODEL.ROI_HEADS.FOCAL_ALPHA = 1.
+_C.MODEL.ROI_HEADS.FOCAL_GAMMA = 2.
 # ------- fsdet-----------------------------------------------------
 # choose from "FastRCNNOutputLayers" and "CosineSimOutputLayers"
 _C.MODEL.ROI_HEADS.OUTPUT_LAYER = "FastRCNNOutputLayers"

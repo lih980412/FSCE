@@ -368,7 +368,8 @@ def dla46_c(**kwargs):  # DLA-46-C
     model = DLA([1, 1, 1, 2, 2, 1],
                 [16, 32, 64, 64, 128, 256],
                 block=Bottleneck, **kwargs)
-    state_dict = load_state_dict_from_url(model_urls['dla46_c'])
+    # state_dict = load_state_dict_from_url(model_urls['dla46_c'])
+    state_dict = torch.load(r"D:\UserD\Li\FSCE-1\checkpoints\mydataset_dla46\dla46.pth")
     model.load_state_dict(state_dict)
 
     return model
@@ -399,7 +400,8 @@ def dla60(**kwargs):  # DLA-60
     model = DLA([1, 1, 1, 2, 3, 1],
                 [16, 32, 128, 256, 512, 1024],
                 block=Bottleneck, **kwargs)
-    state_dict = load_state_dict_from_url(model_urls['dla60'])
+    # state_dict = load_state_dict_from_url(model_urls['dla60'])
+    state_dict = torch.load(r"D:\UserD\Li\FSCE-1\checkpoints\mydataset_dla60\dla60.pth")
     model.load_state_dict(state_dict)
     return model
 

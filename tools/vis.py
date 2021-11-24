@@ -4,8 +4,8 @@ import cv2
 import json
 
 if __name__ == "__main__":
-    ann_file = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_split\annotations\instances_val.json'
-    jpg_dir = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_split\image'
+    ann_file = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\annotations\instances_val.json'
+    jpg_dir = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image'
 
 
     with open(ann_file, "r") as f:
@@ -21,6 +21,7 @@ if __name__ == "__main__":
                 bbox = a["annotations"][index]["bbox"]
                 cv2.rectangle(img, (int(bbox[0]), int(bbox[1])), (int(bbox[0]+bbox[2]), int(bbox[1]+bbox[3])), (0, 0, 255), 1)
                 print(a["annotations"][index]["category_id"])
+                print(str(bbox[2]*bbox[3]))
                 index += 1
 
             print(jpg_name)

@@ -93,7 +93,7 @@ def kMeans(dataSet, k):
 
 
 if __name__ == "__main__":
-    json_file = json.load(open(r"K:\Dataset\MS COCO 2014\instances_minival2014.json"))
+    json_file = json.load(open(r"D:\UserD\Li\FSCE-1\datasets\my_dataset\annotations\instances_train.json"))
     annotations = json_file['annotations']
     data = []
     del json_file
@@ -101,13 +101,18 @@ if __name__ == "__main__":
         data.append(anno["bbox"])
     data = np.array(data)
     data_wight_height = data[:][:, 2:]
+    data_area = data_wight_height[:, 0] * data_wight_height[:, 1]
+    data_area = data_area[:, np.newaxis]
 
-    clustercents, ClustDist = kMeans(data_wight_height, 3)
-
+    clustercents, ClustDist = kMeans(data_wight_height, 4)
     # 返回计算完成的聚类中心
     print("clustercents:\n", clustercents)
 
-    data_area = data_wight_height[:][0]
+    bboxarea, _ = kMeans(data_area, 6)
+    # 返回计算完成的聚类中心
+    print("bboxarea:\n", bboxarea)
+
+
 
     # # 输出生成的ClustDist：对应的聚类中心(列1),到聚类中心的距离(列2),行与dataSet一一对应
     # color_cluster(ClustDist[:, 0:1], data_wight_height, plt)

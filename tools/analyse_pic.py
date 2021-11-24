@@ -8,7 +8,7 @@ img_h, img_w = 640, 480  # 根据自己数据集适当调整，影响不大
 means, stdevs = [], []
 img_list = []
 
-imgs_path = r'J:\Beijing\FSCE\datasets\coco\val2014'
+imgs_path = r'F:\Dataset\Weld Defects\web\Original\JPEGImages'
 imgs_path_list = os.listdir(imgs_path)
 
 len_ = len(imgs_path_list)

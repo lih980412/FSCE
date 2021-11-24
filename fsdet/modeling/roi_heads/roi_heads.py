@@ -57,7 +57,7 @@ def build_roi_heads(cfg, input_shape):
     Build ROIHeads defined by `cfg.MODEL.ROI_HEADS.NAME`.
     """
     name = cfg.MODEL.ROI_HEADS.NAME
-    return ROI_HEADS_REGISTRY.get(name)(cfg, input_shape)
+    return ROI_HEADS_REGISTRY.get(name)(cfg, input_shape)   # 转到下面的代码
 
 
 def select_foreground_proposals(proposals, bg_label):

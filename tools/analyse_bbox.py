@@ -26,21 +26,44 @@ def distEclud(vecA, vecB):
 
 # 绘制散点图
 def drawScatter(plt, mydata, size=20, color='blue', mrkr='o'):
-    plt.scatter(mydata.T[0], mydata.T[1], s=size, c=color, marker=mrkr)
+    plt.scatter(mydata.T[0].tolist(), mydata.T[1].tolist(), s=size, c=color, marker=mrkr)
+
+# 绘制散点图
+def drawScatter_bbox(plt, mydata, size=20, color='blue', mrkr='o'):
+    plt.scatter(mydata.T[0].tolist(), mydata.T[0].tolist(), s=size, c=color, marker=mrkr)
 
 
 # 以不同颜色绘制数据集里的点
-def color_cluster(dataindx, dataSet, plt):
+def color_cluster_bbox(dataindx, dataSet, plt,):
     datalen = len(dataindx)
     for indx in range(datalen):
         if int(dataindx[indx]) == 0:
-            plt.scatter(dataSet[indx, 0], dataSet[indx, 1], c='blue', marker='o')
+            plt.scatter(dataSet[indx, 0], dataSet[indx, 0], s=10, c='blue', marker='o')
         elif int(dataindx[indx]) == 1:
-            plt.scatter(dataSet[indx, 0], dataSet[indx, 1], c='green', marker='o')
+            plt.scatter(dataSet[indx, 0], dataSet[indx, 0], s=10, c='green', marker='o')
         elif int(dataindx[indx]) == 2:
-            plt.scatter(dataSet[indx, 0], dataSet[indx, 1], c='red', marker='o')
+            plt.scatter(dataSet[indx, 0], dataSet[indx, 0], s=10, c='red', marker='o')
         elif int(dataindx[indx]) == 3:
-            plt.scatter(dataSet[indx, 0], dataSet[indx, 1], c='cyan', marker='o')
+            plt.scatter(dataSet[indx, 0], dataSet[indx, 0], s=10, c='cyan', marker='o')
+        elif int(dataindx[indx]) == 4:
+            plt.scatter(dataSet[indx, 0], dataSet[indx, 0], s=10, c='orange', marker='o')
+
+# 以不同颜色绘制数据集里的点
+def color_cluster(dataindx, dataSet, plt, id2img):
+    datalen = len(dataindx)
+    for indx in range(datalen):
+        # if dataSet[indx, 1] > 420:
+        #     print("outlier img: " + id2img[str(dataSet[indx, 2])])
+        if int(dataindx[indx]) == 0:
+            plt.scatter(dataSet[indx, 0], dataSet[indx, 1], s=10, c='blue', marker='o')
+        elif int(dataindx[indx]) == 1:
+            plt.scatter(dataSet[indx, 0], dataSet[indx, 1], s=10, c='green', marker='o')
+        elif int(dataindx[indx]) == 2:
+            plt.scatter(dataSet[indx, 0], dataSet[indx, 1], s=10, c='red', marker='o')
+        elif int(dataindx[indx]) == 3:
+            plt.scatter(dataSet[indx, 0], dataSet[indx, 1], s=10, c='cyan', marker='o')
+        elif int(dataindx[indx]) == 4:
+            plt.scatter(dataSet[indx, 0], dataSet[indx, 1], s=10, c='orange', marker='o')
 
 
 def kMeans(dataSet, k):
@@ -92,31 +115,44 @@ def kMeans(dataSet, k):
     return clustercents, ClustDist
 
 
+def find_img_id(json_images):
+    dict = {}
+    for i in range(len(json_images)):
+        dict[json_images[i]["id"]] = json_images[i]["file_name"]
+    return dict
+
+
 if __name__ == "__main__":
-    json_file = json.load(open(r"D:\UserD\Li\FSCE-1\datasets\my_dataset\annotations\instances_train.json"))
+    json_file = json.load(open(r"D:\UserD\Li\FSCE-1\datasets\my_dataset_before\annotations\instances_train.json"))
     annotations = json_file['annotations']
+    id2img = find_img_id(json_file['images'])
     data = []
     del json_file
     for anno in annotations:
+        id = anno["image_id"]
+        anno["bbox"].append(int(id))
         data.append(anno["bbox"])
     data = np.array(data)
     data_wight_height = data[:][:, 2:]
     data_area = data_wight_height[:, 0] * data_wight_height[:, 1]
     data_area = data_area[:, np.newaxis]
 
-    clustercents, ClustDist = kMeans(data_wight_height, 4)
-    # 返回计算完成的聚类中心
-    print("clustercents:\n", clustercents)
+    # clustercents, ClustDist = kMeans(data_wight_height[:, :2], 3)
+    # # 返回计算完成的聚类中心
+    # print("clustercents:\n", clustercents)
 
-    bboxarea, _ = kMeans(data_area, 6)
+    bboxarea, ClustDist_bbox = kMeans(data_area, 5)
     # 返回计算完成的聚类中心
     print("bboxarea:\n", bboxarea)
 
-
-
+    fig = plt.figure()
     # # 输出生成的ClustDist：对应的聚类中心(列1),到聚类中心的距离(列2),行与dataSet一一对应
-    # color_cluster(ClustDist[:, 0:1], data_wight_height, plt)
+    # color_cluster(ClustDist[:, 0:1], data_wight_height, plt, id2img)
     # # 绘制聚类中心
-    # fig = plt.figure()
-    # drawScatter(plt, clustercents, size=60, color='red', mrkr='D')
-    # plt.show()
+    # drawScatter(plt, clustercents, size=20, color='black', mrkr='D')
+
+    # 输出生成的ClustDist：对应的聚类中心(列1),到聚类中心的距离(列2),行与dataSet一一对应
+    color_cluster_bbox(ClustDist_bbox[:, 0:1], data_area, plt)
+    # 绘制聚类中心
+    drawScatter_bbox(plt, bboxarea, size=20, color='black', mrkr='D')
+    plt.show()

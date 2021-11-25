@@ -107,60 +107,64 @@ def convert(xml_list, json_file):
 
 
 '''数字底片'''
-# if __name__ == '__main__':
-#     # xml标注文件夹
-#     xml_dirs = [r'F:\Dataset\数字底片\imagesWebsiteA\1round', r'F:\Dataset\数字底片\imagesWebsiteA\2crack',
-#                 r'F:\Dataset\数字底片\imagesWebsiteA\3icf', r'F:\Dataset\数字底片\imagesWebsiteA\4lop',
-#                 r'F:\Dataset\数字底片\imagesWebsiteA\5bar',
-#                 r'F:\Dataset\数字底片\imagesWebsite\1round', r'F:\Dataset\数字底片\imagesWebsite\2crack',
-#                 r'F:\Dataset\数字底片\imagesWebsite\3icf', r'F:\Dataset\数字底片\imagesWebsite\4lop',
-#                 r'F:\Dataset\数字底片\imagesWebsite\5bar']
-#
-#     jpg_dir = r'D:\UserD\Li\FSCE-1\datasets\my_dataset\image'
-#     # 训练数据的josn文件
-#     save_json_train = r'D:\UserD\Li\FSCE-1\datasets\my_dataset\annotations\instances_train.json'
-#     # 验证数据的josn文件
-#     save_json_val = r'D:\UserD\Li\FSCE-1\datasets\my_dataset\annotations\instances_val.json'
-#     # 验证数据的test文件
-#     save_json_test = r'D:\UserD\Li\FSCE-1\datasets\my_dataset\annotations\instances_test.json'
-#     # 类别，这里只有dog一个类别，如果是多个类别，往classes中添加类别名字即可，比如['dog', 'person', 'cat']
-#     classes = ['round', 'crack', 'icf', 'lop', 'bar']
-#     pre_define_categories = {}
-#     for i, cls in enumerate(classes):
-#         pre_define_categories[cls] = i + 1
-#
-#     only_care_pre_define_categories = True
-#
-#     # 训练数据集比例
-#     train_ratio = 0.8
-#     val_ratio = 0.2
-#     print('xml_dir is {}'.format(xml_dirs))
-#     xml_list = []
-#     for xml_dir in xml_dirs:
-#         temp = []
-#         temp = glob.glob(xml_dir + "/*.xml")
-#         xml_list += temp
-#
-#     xml_list = np.sort(xml_list)
-#     #     print('xml_list is {}'.format(xml_list))
-#     np.random.seed(100)
-#     np.random.shuffle(xml_list)
-#
-#
-#     train_num = int(len(xml_list) * train_ratio)
-#     val_num = int(len(xml_list) * val_ratio)
-#     print('训练样本数目是 {}'.format(train_num))
-#     print('验证样本数目是 {}'.format(val_num))
-#     print('测试样本数目是 {}'.format(len(xml_list) - train_num - val_num))
-#     xml_list_val = xml_list[:val_num]
-#     xml_list_train = xml_list[val_num:train_num + val_num]
-#     xml_list_test = xml_list[train_num + val_num:]
-#     # 对训练数据集对应的xml进行coco转换
-#     convert(xml_list_train, save_json_train)
-#     # 对验证数据集的xml进行coco转换
-#     convert(xml_list_val, save_json_val)
-#     # 对测试数据集的xml进行coco转换
-#     # convert(xml_list_test, save_json_test)
+if __name__ == '__main__':
+    # xml标注文件夹
+    xml_dirs = [r'F:\Dataset\Weld Defects\digital\imagesWebsiteA\1round',
+                r'F:\Dataset\Weld Defects\digital\imagesWebsiteA\2crack',
+                r'F:\Dataset\Weld Defects\digital\imagesWebsiteA\3icf',
+                r'F:\Dataset\Weld Defects\digital\imagesWebsiteA\4lop',
+                r'F:\Dataset\Weld Defects\digital\imagesWebsiteA\5bar',
+                r'F:\Dataset\Weld Defects\digital\imagesWebsite\1round',
+                r'F:\Dataset\Weld Defects\digital\imagesWebsite\2crack',
+                r'F:\Dataset\Weld Defects\digital\imagesWebsite\3icf',
+                r'F:\Dataset\Weld Defects\digital\imagesWebsite\4lop',
+                r'F:\Dataset\Weld Defects\digital\imagesWebsite\5bar']
+
+    jpg_dir = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image'
+    # 训练数据的josn文件
+    save_json_train = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\annotations\instances_train.json'
+    # 验证数据的josn文件
+    save_json_val = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\annotations\instances_val.json'
+    # 验证数据的test文件
+    # save_json_test = r'D:\UserD\Li\FSCE-1\datasets\my_dataset\annotations\instances_test.json'
+    # 类别，这里只有dog一个类别，如果是多个类别，往classes中添加类别名字即可，比如['dog', 'person', 'cat']
+    classes = ['round', 'crack', 'icf', 'lop', 'bar']
+    pre_define_categories = {}
+    for i, cls in enumerate(classes):
+        pre_define_categories[cls] = i + 1
+
+    only_care_pre_define_categories = True
+
+    # 训练数据集比例
+    train_ratio = 0.8
+    val_ratio = 0.2
+    print('xml_dir is {}'.format(xml_dirs))
+    xml_list = []
+    for xml_dir in xml_dirs:
+        temp = []
+        temp = glob.glob(xml_dir + "/*.xml")
+        xml_list += temp
+
+    xml_list = np.sort(xml_list)
+    #     print('xml_list is {}'.format(xml_list))
+    np.random.seed(100)
+    np.random.shuffle(xml_list)
+
+
+    train_num = int(len(xml_list) * train_ratio)
+    val_num = int(len(xml_list) * val_ratio)
+    print('训练样本数目是 {}'.format(train_num))
+    print('验证样本数目是 {}'.format(val_num))
+    print('测试样本数目是 {}'.format(len(xml_list) - train_num - val_num))
+    xml_list_val = xml_list[:val_num]
+    xml_list_train = xml_list[val_num:train_num + val_num]
+    xml_list_test = xml_list[train_num + val_num:]
+    # 对训练数据集对应的xml进行coco转换
+    convert(xml_list_train, save_json_train)
+    # 对验证数据集的xml进行coco转换
+    convert(xml_list_val, save_json_val)
+    # 对测试数据集的xml进行coco转换
+    # convert(xml_list_test, save_json_test)
 
 '''现场底片'''
 # if __name__ == '__main__':

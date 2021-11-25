@@ -1,8 +1,7 @@
 _BASE_: "../Base-RCNN-FPN.yaml"
 MODEL:
-#  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/baseline/DLA_60_FPN_baseline/model_0039999.pth"
-  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/baseline/DLA_60_FPN_baseline_before/model_0024999.pth"
-  PIXEL_MEAN: [60.703, 60.708, 60.708]
+  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/coco/model_final.pth"
+#  PIXEL_MEAN: [60.703, 60.708, 60.708]
   MASK_ON: False
   DLA:
     ARCH: "DLA-60"
@@ -24,8 +23,8 @@ MODEL:
     FOCAL_ALPHA: 1.
     FOCAL_GAMMA: 2.
   ANCHOR_GENERATOR:
-    SIZES: [[39, 154, 264, 334, 400]]
-    ASPECT_RATIOS: [[0.225, 1.3, 5.5]]
+    SIZES: [[39, 158, 271, 350, 433]]
+    ASPECT_RATIOS:  [[1.7, 5.3, 5.6]]
   PROPOSAL_GENERATOR:
     FREEZE: False
   RPN:
@@ -38,7 +37,7 @@ DATASETS:
 SOLVER:
   LR_SCHEDULER_NAME: WarmupMultiStepLR
   IMS_PER_BATCH: 4
-  STEPS: (70000, 80000)
+  STEPS: (80000, 90000)
   CHECKPOINT_PERIOD: 5000
   MAX_ITER: 90000
   WARMUP_ITERS: 2000
@@ -47,6 +46,6 @@ INPUT:
   USE_TRANSFORM_AUG: True
   CROP:
     ENABLED: False
-OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/baseline/DLA_60_FPN_baseline_before"
+OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/baseline/DLA_60_FPN_baseline/step2_ablation/SIZES+RATIOS"
 TEST:
   EVAL_PERIOD: 5000

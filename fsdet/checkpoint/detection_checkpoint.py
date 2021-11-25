@@ -40,7 +40,7 @@ class DetectionCheckpointer(Checkpointer):
                 return {"model": data, "__author__": "Caffe2", "matching_heuristics": True}
 
         loaded = super()._load_file(filename)  # load native pth checkpoint
-        loaded["iteration"] = 25000
+        loaded["iteration"] = 0
         if "model" not in loaded:
             loaded = {"model": loaded}
         return loaded

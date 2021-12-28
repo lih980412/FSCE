@@ -2,10 +2,13 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
 import logging
+import random
+
 import numpy as np
 import time
 import weakref
 import torch
+
 
 import fsdet.utils.comm as comm
 from fsdet.utils.events import EventStorage
@@ -129,10 +132,36 @@ class TrainerBase:
                 self.before_train()
                 for self.iter in range(start_iter, max_iter):
                     self.before_step()
-                    self.run_step()
+                    if self.cfg.INPUT.USE_MIXUP:
+                        self.run_step_mixup()
+                    elif self.cfg.INPUT.USE_MOSAIC:
+                        self.run_step_mosaic()
+                    else:
+                        self.run_step()
                     self.after_step()
             finally:
                 self.after_train()
+
+    # def train_mixup(self, start_iter: int, max_iter: int):
+    #     """
+    #             Args:
+    #                 start_iter, max_iter (int): See docs above
+    #             """
+    #     logger = logging.getLogger(__name__)
+    #     logger.info("Starting training from iteration {}".format(start_iter))
+    #
+    #     self.iter = self.start_iter = start_iter
+    #     self.max_iter = max_iter
+    #
+    #     with EventStorage(start_iter) as self.storage:
+    #         try:
+    #             self.before_train()
+    #             for self.iter in range(start_iter, max_iter):
+    #                 self.before_step()
+    #                 self.run_step_mixup()
+    #                 self.after_step()
+    #         finally:
+    #             self.after_train()
 
     def before_train(self):
         for h in self._hooks:
@@ -153,6 +182,12 @@ class TrainerBase:
         self.storage.step()
 
     def run_step(self):
+        raise NotImplementedError
+
+    def run_step_mixup(self):
+        raise NotImplementedError
+
+    def run_step_mosaic(self):
         raise NotImplementedError
 
 
@@ -229,6 +264,89 @@ class SimpleTrainer(TrainerBase):
         wrap the optimizer with your custom `step()` method.
         """
         self.optimizer.step()
+
+    def run_step_mixup(self):
+        # print("use mixup")
+
+        assert self.model.training, "[SimpleTrainer] model was changed to eval mode!"
+        start = time.perf_counter()
+        'Mixup'
+        '简单逆序实现，没有随机打乱，需要注意batchsize应该为偶数'
+        alpha = 1
+        beta_distribution = torch.distributions.beta.Beta(alpha, alpha)
+        lambda_ = beta_distribution.sample([]).item()
+        # print("use Mixup")
+        data = next(self._data_loader_iter)
+        data_reverse = data[::-1]
+        for i in range(len(data)):
+            if data[i]["image"].shape[1] != 700:
+                sub = 700 - data[i]["image"].shape[1]
+                data[i]["image"] = comm.padd(data[i]["image"], sub)
+
+            if data_reverse[i]["image"].shape[1] != 700:
+                sub = 700 - data_reverse[i]["image"].shape[1]
+                data_reverse[i]["image"] = comm.padd(data_reverse[i]["image"], sub)
+
+            data[i]["image"] = lambda_ * data[i]["image"] + (1 - lambda_) * data_reverse[i]["image"]
+
+        data_time = time.perf_counter() - start
+
+        loss_dict = self.model(data, lambda_)
+        losses = sum(loss for loss in loss_dict.values())
+
+        self._detect_anomaly(losses, loss_dict)
+
+        metrics_dict = loss_dict
+        metrics_dict["data_time"] = data_time
+        self._write_metrics(metrics_dict)
+
+        self.optimizer.zero_grad()
+        losses.backward()
+
+        self.optimizer.step()
+
+    def run_step_mosaic(self):
+        # print("use mosaic")
+
+        assert self.model.training, "[SimpleTrainer] model was changed to eval mode!"
+        start = time.perf_counter()
+
+        data = next(self._data_loader_iter)
+        # comm.vis_mosaic(data ,id)
+        data_time = time.perf_counter() - start
+
+        data_new = []
+        for i in range(self.cfg.INPUT.MOSAIC_BATCH):
+            random.shuffle(data)
+            data_temp = comm.Mosaic(data[:4])
+            data_new.append(data_temp)
+        # comm.vis_mosaic(data_new ,id)
+        # del data
+        loss_dict = self.model(data_new)
+        '显存不够'
+        # if self.iter>5000:
+        #     data_new = []
+        #     for i in range(self.cfg.INPUT.MOSAIC_BATCH):
+        #         random.shuffle(data)
+        #         data_temp = comm.Mosaic(data[:4])
+        #         data_new.append(data_temp)
+        #     # comm.vis_mosaic(data_new ,id)
+        #     del data
+        #     loss_dict = self.model(data_new)
+        # else:
+        #     loss_dict = self.model(data)
+        losses = sum(loss for loss in loss_dict.values())
+        self._detect_anomaly(losses, loss_dict)
+
+        metrics_dict = loss_dict
+        metrics_dict["data_time"] = data_time
+        self._write_metrics(metrics_dict)
+
+        self.optimizer.zero_grad()
+        losses.backward()
+
+        self.optimizer.step()
+
 
     def _detect_anomaly(self, losses, loss_dict):
         if not torch.isfinite(losses).all():

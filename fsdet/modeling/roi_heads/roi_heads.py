@@ -426,7 +426,7 @@ class StandardROIHeads(ROIHeads):
             cfg, self.box_head.output_size, self.num_classes, self.cls_agnostic_bbox_reg
         )
 
-    def forward(self, images, features, proposals, targets=None):
+    def forward(self, images, features, proposals, targets=None, use_mixup=False, lambda_=None):
         """
         See :class:`ROIHeads.forward`.
             proposals (List[Instance]): fields=[proposal_boxes, objectness_logits]
@@ -436,22 +436,41 @@ class StandardROIHeads(ROIHeads):
                 gt_instances for each image, len = N
         """
         del images
-        if self.training:
-            # label and sample 256 from post_nms_top_k each images
-            # has field [proposal_boxes, objectness_logits ,gt_classes, gt_boxes]
-            proposals = self.label_and_sample_proposals(proposals, targets)
-        del targets
+        if use_mixup:
+            'Mixup'
+            if self.training:
+                proposals_a = self.label_and_sample_proposals(proposals, targets)
+                targets_b = targets[::-1]
+                proposals_b = self.label_and_sample_proposals(proposals, targets_b)
+                del targets, targets_b
+            features_list = [features[f] for f in self.in_features]
+            if self.training:
+                losses = self._forward_box(features_list, proposals_a)  # get losses from fast_rcnn.py::FastRCNNOutputs
+                losses_b = self._forward_box(features_list, proposals_b)
+                losses["loss_cls"] = lambda_ * losses["loss_cls"] + (1-lambda_) * losses_b["loss_cls"]
+                # losses["loss_box_reg"] = lambda_ * losses["loss_box_reg"] + (1-lambda_) * losses_b["loss_box_reg"]
+                return proposals, losses  # return to rcnn.py line 201
 
-        features_list = [features[f] for f in self.in_features]
-
-        if self.training:
-            # FastRCNNOutputs.losses()
-            # {'loss_cls':, 'loss_box_reg':}
-            losses = self._forward_box(features_list, proposals)  # get losses from fast_rcnn.py::FastRCNNOutputs
-            return proposals, losses  # return to rcnn.py line 201
+            else:
+                proposals = self.label_and_sample_proposals(proposals, targets)
+                pred_instances = self._forward_box(features_list, proposals)
+                return pred_instances, {}
         else:
-            pred_instances = self._forward_box(features_list, proposals)
-            return pred_instances, {}
+            if self.training:
+                # label and sample 256 from post_nms_top_k each images
+                # has field [proposal_boxes, objectness_logits ,gt_classes, gt_boxes]
+                proposals = self.label_and_sample_proposals(proposals, targets)
+            del targets
+            features_list = [features[f] for f in self.in_features]
+            if self.training:
+                # FastRCNNOutputs.losses()
+                # {'loss_cls':, 'loss_box_reg':}
+                losses = self._forward_box(features_list, proposals)  # get losses from fast_rcnn.py::FastRCNNOutputs
+                return proposals, losses  # return to rcnn.py line 201
+            else:
+                pred_instances = self._forward_box(features_list, proposals)
+                return pred_instances, {}
+
 
     def _forward_box(self, features, proposals):
         """

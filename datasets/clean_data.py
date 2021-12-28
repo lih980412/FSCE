@@ -90,7 +90,7 @@ if __name__ == "__main__":
     #             print("remove pic " + str(j))
 
     jpg_dir = r'F:\Dataset\Weld Defects\work field\JPEGImages'
-    taget_dir = r"D:\UserD\Li\FSCE-1\datasets\my_dataset_split\image"
+    taget_dir = r"D:\UserD\Li\FSCE-1\datasets\my_dataset_workfield\image"
 
     i = 0
     j = 0

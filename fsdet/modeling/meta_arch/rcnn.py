@@ -72,6 +72,10 @@ class GeneralizedRCNN(nn.Module):
         # for model in [self.backbone.fpn_output2, self.backbone.fpn_output3, self.backbone.fpn_output4, self.backbone.fpn_output5]:
         #     s2 += sum(p.numel() for p in model.parameters())
         # print('FPN',s1, s2)
+        if cfg.INPUT.USE_MIXUP:
+            self.use_mixup = True
+        else:
+            self.use_mixup = False
 
         if cfg.MODEL.BACKBONE.FREEZE:
             for p in self.backbone.parameters():
@@ -108,7 +112,7 @@ class GeneralizedRCNN(nn.Module):
         print('-------- Using Roi Head: {}---------\n'.format(cfg.MODEL.ROI_HEADS.NAME))
 
 
-    def forward(self, batched_inputs):
+    def forward(self, batched_inputs, lambda_=None):
         """
         Args:
             batched_inputs: a list, batched outputs of :class:`DatasetMapper` .
@@ -163,7 +167,7 @@ class GeneralizedRCNN(nn.Module):
         # RoI
         # ROI inputs are post_nms_top_k proposals.
         # detector_losses includes Contrast Loss, 和业务层的 cls loss, and reg loss
-        _, detector_losses = self.roi_heads(images, features, proposals, gt_instances)
+        _, detector_losses = self.roi_heads(images, features, proposals, gt_instances, self.use_mixup, lambda_)
 
         losses = {}
         losses.update(detector_losses)
@@ -254,7 +258,7 @@ class GeneralizedRCNN(nn.Module):
         Normalize, pad and batch the input images.
         """
         images = [x["image"].to(self.device) for x in batched_inputs]
-        images = [self.normalizer(x) for x in images]
+        # images = [self.normalizer(x) for x in images]
         images = ImageList.from_tensors(images, self.backbone.size_divisibility)
         return images
 

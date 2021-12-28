@@ -399,6 +399,13 @@ class DefaultTrainer(SimpleTrainer):
             verify_results(self.cfg, self._last_eval_results)
             return self._last_eval_results
 
+
+    # def train_mixup(self):
+    #     super().train_mixup(self.start_iter, self.max_iter)
+    #     if hasattr(self, "_last_eval_results") and comm.is_main_process():
+    #         verify_results(self.cfg, self._last_eval_results)
+    #         return self._last_eval_results
+
     @classmethod
     def build_model(cls, cfg):
         """

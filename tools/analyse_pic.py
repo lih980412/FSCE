@@ -4,11 +4,11 @@ import os
 # https://blog.csdn.net/dcrmg/article/details/102467434?spm=1001.2101.3001.6650.2&utm_medium=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7Edefault-2.no_search_link&depth_1-utm_source=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7Edefault-2.no_search_link
 
 # img_h, img_w = 32, 32
-img_h, img_w = 640, 480  # 根据自己数据集适当调整，影响不大
+img_h, img_w = 900, 700  # 根据自己数据集适当调整，影响不大
 means, stdevs = [], []
 img_list = []
 
-imgs_path = r'F:\Dataset\Weld Defects\web\Original\JPEGImages'
+imgs_path = r'D:\UserD\Li\FSCE-1\datasets\my_dataset\image'
 imgs_path_list = os.listdir(imgs_path)
 
 len_ = len(imgs_path_list)

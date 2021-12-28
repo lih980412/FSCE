@@ -96,6 +96,9 @@ class Boxes:
 
         self.tensor = tensor
 
+    def set_tensor(self, tensors):
+        self.tensor = torch.as_tensor(tensors, dtype=torch.float32, device="cuda")
+
     def clone(self) -> "Boxes":
         """
         Clone the Boxes.

@@ -123,7 +123,7 @@ def find_img_id(json_images):
 
 
 if __name__ == "__main__":
-    json_file = json.load(open(r"D:\UserD\Li\FSCE-1\datasets\my_dataset_before\annotations\instances_train.json"))
+    json_file = json.load(open(r"D:\UserD\Li\FSCE-1\datasets\my_dataset\annotations\instances_train.json"))
     annotations = json_file['annotations']
     id2img = find_img_id(json_file['images'])
     data = []
@@ -137,22 +137,22 @@ if __name__ == "__main__":
     data_area = data_wight_height[:, 0] * data_wight_height[:, 1]
     data_area = data_area[:, np.newaxis]
 
+    fig = plt.figure()
+
     # clustercents, ClustDist = kMeans(data_wight_height[:, :2], 3)
     # # 返回计算完成的聚类中心
     # print("clustercents:\n", clustercents)
-
-    bboxarea, ClustDist_bbox = kMeans(data_area, 5)
-    # 返回计算完成的聚类中心
-    print("bboxarea:\n", bboxarea)
-
-    fig = plt.figure()
     # # 输出生成的ClustDist：对应的聚类中心(列1),到聚类中心的距离(列2),行与dataSet一一对应
     # color_cluster(ClustDist[:, 0:1], data_wight_height, plt, id2img)
     # # 绘制聚类中心
     # drawScatter(plt, clustercents, size=20, color='black', mrkr='D')
 
+    bboxarea, ClustDist_bbox = kMeans(data_area, 5)
+    # 返回计算完成的聚类中心
+    print("bboxarea:\n", bboxarea)
     # 输出生成的ClustDist：对应的聚类中心(列1),到聚类中心的距离(列2),行与dataSet一一对应
     color_cluster_bbox(ClustDist_bbox[:, 0:1], data_area, plt)
     # 绘制聚类中心
     drawScatter_bbox(plt, bboxarea, size=20, color='black', mrkr='D')
+
     plt.show()

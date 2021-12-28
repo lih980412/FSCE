@@ -36,6 +36,7 @@ _C.MODEL.PIXEL_MEAN = [103.530, 116.280, 123.675]
 # std has been absorbed into its conv1 weights, so the std needs to be set 1.
 # Otherwise, you can use [57.375, 57.120, 58.395] (ImageNet std)
 _C.MODEL.PIXEL_STD = [1.0, 1.0, 1.0]
+# _C.MODEL.PIXEL_STD = [57.375, 57.120, 58.395]
 
 
 # -----------------------------------------------------------------------------
@@ -700,6 +701,9 @@ _C.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = 0.5
 # ----------- INPUT AUGMENTATION ---
 # detectron2 transform augmenatations, e.g. RandomBrightness, RandomContraset, etc
 _C.INPUT.USE_TRANSFORM_AUG = False
+_C.INPUT.USE_MIXUP = False
+_C.INPUT.USE_MOSAIC = False
+_C.INPUT.MOSAIC_BATCH = 0
 
 # currently albumentation is buggy, involves following:
     # dataset_mapper.py

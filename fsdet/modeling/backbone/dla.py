@@ -235,7 +235,7 @@ class Tree(nn.Module):
 
 
 class DLA(Backbone):
-    def __init__(self, levels, channels, out_features, input_channels=3,
+    def __init__(self, levels, channels, out_features,input_channels=3,
                  num_classes=1000, pool_size=7,
                  block=BasicBlock,
                  residual_root=False, scale_idx=5):
@@ -292,9 +292,12 @@ class DLA(Backbone):
             self._out_feature_channels['level5'] = channels[5]
             self._out_feature_strides['level5'] = 32
 
+
         self.avgpool = nn.AvgPool2d(pool_size)
         self.fc = nn.Conv2d(channels[-1], num_classes, kernel_size=1,
                             stride=1, padding=0, bias=True)
+
+        self._size_divisibility = 32
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -346,11 +349,15 @@ class DLA(Backbone):
     def output_shape(self):
         return {
             name: ShapeSpec(
-                channels=self._out_features_channels[name],
-                stride=self._out_features_strides[name]
+                channels=self._out_feature_channels[name],
+                stride=self._out_feature_strides[name]
             )
             for name in self._out_features
         }
+
+    @property
+    def size_divisibility(self):
+        return self._size_divisibility
 
 
 def dla34(**kwargs):  # DLA-34
@@ -358,7 +365,8 @@ def dla34(**kwargs):  # DLA-34
                 [16, 32, 64, 128, 256, 512],
                 block=BasicBlock, **kwargs)
 
-    state_dict = load_state_dict_from_url(model_urls['dla34'])
+    # state_dict = load_state_dict_from_url(model_urls['dla34'])
+    state_dict = torch.load(r"D:\UserD\Li\FSCE-1\checkpoints\mydateset_dla34\dla34.pth")
     model.load_state_dict(state_dict)
     return model
 

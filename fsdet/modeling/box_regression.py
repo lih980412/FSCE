@@ -7,7 +7,6 @@ import torch
 # 1000px box (based on a small anchor, 16px, and a typical image size, 1000px).
 _DEFAULT_SCALE_CLAMP = math.log(1000.0 / 16)
 
-
 __all__ = ["Box2BoxTransform", "Box2BoxTransformRotated"]
 
 
@@ -63,6 +62,17 @@ class Box2BoxTransform(object):
         dh = wh * torch.log(target_heights / src_heights)
 
         deltas = torch.stack((dx, dy, dw, dh), dim=1)
+        if len(torch.where(src_widths < 0)[0]) > 0:
+
+            # if len(torch.where(src_widths<0)[0]) > 1:
+            import copy
+            temp = copy.deepcopy(torch.where(src_widths < 0)[0])
+            for i in range(len(temp)):
+
+                src_widths[temp[i]] = 1
+            del temp
+            # else:
+            #     src_widths[int(torch.where(src_widths < 0)[0])] = 1
         assert (src_widths > 0).all().item(), "Input boxes to Box2BoxTransform are not valid!"
         return deltas
 

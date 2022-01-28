@@ -4,6 +4,7 @@
 *.txt
 *.json
 *.diff
+*.xml
 
 # compilation and distribution
 __pycache__/

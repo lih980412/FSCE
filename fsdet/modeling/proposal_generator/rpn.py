@@ -164,6 +164,11 @@ class RPN(nn.Module):
             self.rpn_focal_alpha,
             self.rpn_focal_gamma
         )
+        '显示 RPN 中正负 anchor 思路'
+        # image_anchor_per_featuremap_deltas -> image_anchor_per_featuremap -> * self.anchor_generator.strides -> upsample back to orginal image
+        # outputs.visPosNegAnchor(self.anchor_generator.strides)
+        #
+
 
         if self.training and not self.cl_head_only:
             losses = {k: v * self.loss_weight for k, v in outputs.losses().items()}

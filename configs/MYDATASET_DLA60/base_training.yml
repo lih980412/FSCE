@@ -1,22 +1,9 @@
 _BASE_: "../Base-RCNN-FPN.yaml"
 MODEL:
-  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/baseline/step2_ablation/SIZES+RATIOS_28.341/model_0054999.pth"
+  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/mydataset2_dla60/baseline/Mixup/model_0014999.pth"
 #  PIXEL_MEAN: [60., 60., 60.]
   MASK_ON: False
 
-#  RESNETS:
-#    DEPTH: 50
-#  BACKBONE:
-#    NAME: build_resnet_fpn_backbone
-#    FREEZE: False
-#    FREEZE_AT: 5
-#    FREEZE_P5: False
-#  FPN:
-#    IN_FEATURES:
-#      - res2
-#      - res3
-#      - res4
-#      - res5
   DLA:
     ARCH: "DLA-60"
   BACKBONE:
@@ -33,28 +20,32 @@ MODEL:
 
   ROI_HEADS:
     BATCH_SIZE_PER_IMAGE: 256 # 1
-    NUM_CLASSES: 5
+    NUM_CLASSES: 4
     FREEZE_FEAT: False
     FOCAL_ALPHA: 1.
     FOCAL_GAMMA: 2.
-#    IN_FEATURES:
-#    - level5
   ANCHOR_GENERATOR:
+     SIZES: [ [ 27, 49, 64, 83, 109] ]
+     ASPECT_RATIOS: [[0.2, 0.5, 1]]
+#    SIZES: [[23.8, 78.8, 135.6, 195.2, 260]]
+#    ASPECT_RATIOS: [[1.05, 6.1, 13]]
+#    SIZES: [[23, 75.7, 126.8, 177, 242.9]]    # 555
+#    ASPECT_RATIOS: [[0.21, 1.7, 12.3]]      # 555
 #    SIZES: [[39, 158, 271, 350, 433]]   # _before
 #    ASPECT_RATIOS:  [[1.7, 5.3, 5.6]]   # _before
-    SIZES: [[23.8, 78.8, 135.6, 195.2, 260]]
-    ASPECT_RATIOS: [[1.05, 6.1, 13]]
   PROPOSAL_GENERATOR:
     FREEZE: False
   RPN:
-#    IN_FEATURES:
-#    - level5
-#    POST_NMS_TOPK_TRAIN: 4000 # 2 FSCE原文中的trick，但是 PRE_NMS_TOPK_TRAIN 只有2000个，这里增加为4000似乎也没用
+    POST_NMS_TOPK_TRAIN: 2000 # 2 FSCE原文中的trick，但是 PRE_NMS_TOPK_TRAIN 只有2000个，这里增加为4000似乎也没用
     FOCAL_ALPHA: 0.25
     FOCAL_GAMMA: 2.
 DATASETS:
-  TRAIN: ('custom1_train',)
-  TEST: ('custom1_val',)
+#  TRAIN: ('custom1_train',)
+#  TEST: ('custom1_val',)
+  TRAIN: ('custom2_train_220123',)
+  TEST: ('custom2_val_220123',)
+#  TRAIN: ('custom1_train_555',)
+#  TEST: ('custom1_val_555',)
 #  TRAIN: ('custom1_train_before',)
 #  TEST: ('custom1_val_before',)
 SOLVER:
@@ -64,7 +55,8 @@ SOLVER:
   STEPS: (60000, 85000, 110000)
   CHECKPOINT_PERIOD: 5000
   MAX_ITER: 150000
-  WARMUP_ITERS: 2000
+#  WARMUP_ITERS: 2000
+  WARMUP_ITERS: 0
   BASE_LR: 0.005
 INPUT:
   USE_TRANSFORM_AUG: True
@@ -73,7 +65,7 @@ INPUT:
   MOSAIC_BATCH: 4
   CROP:
     ENABLED: False
-OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/baseline/step3_ablation/SIZES+RATIOS+MIXUP+UNNORM"
+OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset2_dla60/baseline/Mixup"
 
 TEST:
-  EVAL_PERIOD: 5000
+  EVAL_PERIOD: 2500

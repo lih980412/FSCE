@@ -268,6 +268,7 @@ def pairwise_iou(boxes1: Boxes, boxes2: Boxes) -> torch.Tensor:
     inter = wh[:, :, 0] * wh[:, :, 1]  # [N,M]
 
     # handle empty boxes
+    # inter > 0的话，更改 inter 为 inter / (area1[:, None] + area2 - inter)，否则更改 inter 为 torch.zeros(1, dtype=inter.dtype, device=inter.device)
     iou = torch.where(
         inter > 0,
         inter / (area1[:, None] + area2 - inter),

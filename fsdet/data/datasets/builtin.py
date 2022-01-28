@@ -20,7 +20,7 @@ To add new dataset, refer to the tutorial "docs/DATASETS.md".
 import os
 
 from fsdet.data import MetadataCatalog
-from .register_coco import register_coco_instances
+from .register_coco import register_coco_instances, register_my_instances2, register_my_instances
 from .meta_coco import register_meta_coco
 from .meta_mydateset import register_meta_mydateset
 from .lvis import register_lvis_instances
@@ -86,13 +86,36 @@ def register_all_coco(root="datasets"):
             os.path.join(root, annofile),
         )
 
+_PREDEFINED_SPLITS_CUSTOM2 = {}
+_PREDEFINED_SPLITS_CUSTOM2["custom2"] = {
+    "custom2_train_220123": ("my_dataset_22.01.23/image", "my_dataset_22.01.23/annotations/instances_train.json"),
+    "custom2_val_220123": ("my_dataset_22.01.23/image", "my_dataset_22.01.23/annotations/instances_val.json"),
+}
+
+
+
+def register_all_custom2(root=r"D:\UserD\Li\FSCE-1\datasets"):
+    for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_CUSTOM2.items():
+        for key, (image_root, json_file) in splits_per_dataset.items():
+            # Assume pre-defined datasets live in `./datasets`.
+            register_my_instances2(
+                key,
+                _get_builtin_metadata(dataset_name),
+                os.path.join(root, json_file) if "://" not in json_file else json_file,
+                os.path.join(root, image_root),
+            )
+
 
 _PREDEFINED_SPLITS_CUSTOM = {}
 _PREDEFINED_SPLITS_CUSTOM["custom1"] = {
     "custom1_train": ("my_dataset/image", "my_dataset/annotations/instances_train.json"),
     "custom1_val": ("my_dataset/image", "my_dataset/annotations/instances_val.json"),
+    "custom1_train_555": ("my_dataset/image", "my_dataset_555/annotations/instances_train.json"),
+    "custom1_val_555": ("my_dataset/image", "my_dataset_555/annotations/instances_val.json"),
     "custom1_train_before": ("my_dataset_before/image", "my_dataset_before/annotations/instances_train.json"),
     "custom1_val_before": ("my_dataset_before/image", "my_dataset_before/annotations/instances_val.json"),
+    "custom1_train_same": ("my_dataset/image", "my_dataset_sameYang/annotations/instances_train.json"),
+    "custom1_val_same": ("my_dataset/image", "my_dataset_sameYang/annotations/instances_val.json"),
 }
 
 
@@ -100,7 +123,7 @@ def register_all_custom1(root=r"D:\UserD\Li\FSCE-1\datasets"):
     for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_CUSTOM.items():
         for key, (image_root, json_file) in splits_per_dataset.items():
             # Assume pre-defined datasets live in `./datasets`.
-            register_coco_instances(
+            register_my_instances(
                 key,
                 _get_builtin_metadata(dataset_name),
                 os.path.join(root, json_file) if "://" not in json_file else json_file,
@@ -290,3 +313,5 @@ register_all_lvis()
 register_all_pascal_voc()
 
 register_all_custom1()
+
+register_all_custom2()

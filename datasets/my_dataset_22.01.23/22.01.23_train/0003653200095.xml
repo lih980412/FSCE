@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+	<annotation>
+		<folder>±ß²¿ÇÌÆ¤</folder>
+		<filename>0003653200095.jpg</filename>
+		<size>
+			<width>780</width>
+			<height>144</height>
+			<depth>3</depth>
+		</size>
+		<object>
+			<name>edgeUpwarping</name>
+			<pose>Unspecified</pose>
+			<truncated>0</truncated>
+			<difficult>0</difficult>
+			<bndbox>
+				<xmin>312</xmin>
+				<ymin>1</ymin>
+				<xmax>335</xmax>
+				<ymax>145</ymax>
+			</bndbox>
+		</object>
+	</annotation>

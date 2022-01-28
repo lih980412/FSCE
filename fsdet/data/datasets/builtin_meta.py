@@ -181,6 +181,8 @@ MY_NOVEL_CATEGORIES = [
     {"color": [106, 0, 228], "isthing": 1, "id": 5, "name": "bar"},
 ]
 
+
+
 # PASCAL VOC categories
 PASCAL_VOC_ALL_CATEGORIES = {
     1: ['aeroplane', 'bicycle', 'boat', 'bottle', 'car', 'cat', 'chair',
@@ -212,6 +214,30 @@ PASCAL_VOC_BASE_CATEGORIES = {
         'tvmonitor'],
 }
 
+MY_DATASET2_CATEGORIES = [
+    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "edgeCrack"},
+    {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "edgeUpwarping"},
+    {"color": [0, 0, 142], "isthing": 1, "id": 3, "name": "scratchIronSheet"},
+    {"color": [0, 0, 230], "isthing": 1, "id": 4, "name": "slagInclusion"},
+]
+
+
+def _get_my_dataset_instances_meta2():
+    thing_ids = [k["id"] for k in MY_DATASET2_CATEGORIES if k["isthing"] == 1]
+    thing_colors = [k["color"] for k in MY_DATASET2_CATEGORIES if k["isthing"] == 1]
+    assert len(thing_ids) == 4, len(thing_ids)
+    # Mapping from the incontiguous COCO category id to an id in [0, 79]
+    thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
+    thing_classes = [k["name"] for k in MY_DATASET2_CATEGORIES if k["isthing"] == 1]
+    ret = {
+        "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
+        "thing_classes": thing_classes,
+        "thing_colors": thing_colors,
+    }
+    return ret
+
+def _get_my_fewshot_instances_meta2():
+    pass
 
 def _get_my_dataset_instances_meta():
     thing_ids = [k["id"] for k in MY_DATASET_CATEGORIES if k["isthing"] == 1]
@@ -226,7 +252,6 @@ def _get_my_dataset_instances_meta():
         "thing_colors": thing_colors,
     }
     return ret
-
 
 def _get_my_fewshot_instances_meta():
     ret = _get_my_dataset_instances_meta()
@@ -329,4 +354,8 @@ def _get_builtin_metadata(dataset_name):
         return _get_my_dataset_instances_meta()
     elif dataset_name == "custom1_fewshot":
         return _get_my_fewshot_instances_meta()
+    elif dataset_name == "custom2":
+        return _get_my_dataset_instances_meta2()
+    elif dataset_name == "custom2_fewshot":
+        return _get_my_fewshot_instances_meta2()
     raise KeyError("No built-in metadata for dataset {}".format(dataset_name))

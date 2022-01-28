@@ -11,46 +11,46 @@ def find_id_img(json_images):
     return dict
 
 # view outlier
-if __name__ == "__main__":
-    jpg_dir = [r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004425.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004705.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004546.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004809.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004036.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004548.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004452.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\005023.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004949.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004998.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\006781.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004295.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004426.jpg',
-               # r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004295.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004677.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\006809.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004323.jpg',
-               r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004675.jpg',
-               # r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004323.jpg',
-               ]
-    ann_file = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\annotations\instances_train.json'
-
-    json_file = json.load(open(ann_file))
-    img2id = find_id_img(json_file["images"])
-    for jpg in jpg_dir:
-        jpg_name = jpg.split("\\")[-1]
-        jpg_id = img2id[str(jpg_name)]
-        img = cv2.imread(jpg)
-        for index in range(len(json_file["annotations"])):
-            if json_file["annotations"][index]["image_id"] == jpg_id:
-                while json_file["annotations"][index]["image_id"] == jpg_id:
-                    bbox = json_file["annotations"][index]["bbox"]
-                    cv2.rectangle(img, (int(bbox[0]), int(bbox[1])), (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3])),
-                                  (0, 0, 255), 1)
-                    print(json_file["annotations"][index]["category_id"])
-                    print(str(bbox[2] * bbox[3]))
-                    break
-                cv2.imshow("img", img)
-                cv2.waitKey(0)
+# if __name__ == "__main__":
+#     jpg_dir = [r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004425.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004705.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004546.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004809.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004036.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004548.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004452.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\005023.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004949.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004998.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\006781.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004295.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004426.jpg',
+#                # r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004295.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004677.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\006809.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004323.jpg',
+#                r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004675.jpg',
+#                # r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\image\004323.jpg',
+#                ]
+#     ann_file = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_before\annotations\instances_train.json'
+#
+#     json_file = json.load(open(ann_file))
+#     img2id = find_id_img(json_file["images"])
+#     for jpg in jpg_dir:
+#         jpg_name = jpg.split("\\")[-1]
+#         jpg_id = img2id[str(jpg_name)]
+#         img = cv2.imread(jpg)
+#         for index in range(len(json_file["annotations"])):
+#             if json_file["annotations"][index]["image_id"] == jpg_id:
+#                 while json_file["annotations"][index]["image_id"] == jpg_id:
+#                     bbox = json_file["annotations"][index]["bbox"]
+#                     cv2.rectangle(img, (int(bbox[0]), int(bbox[1])), (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3])),
+#                                   (0, 0, 255), 1)
+#                     print(json_file["annotations"][index]["category_id"])
+#                     print(str(bbox[2] * bbox[3]))
+#                     break
+#                 cv2.imshow("img", img)
+#                 cv2.waitKey(0)
 
 # # view anno
 # if __name__ == "__main__":
@@ -107,8 +107,8 @@ if __name__ == "__main__":
 #         cv2.imshow("img", img)
 #         cv2.waitKey(0)
 
-# import torch
-# ckpt = torch.load(r"D:\UserD\Li\FSCE-1\checkpoints\mydataset\baseline\R_101_FPN_baseline\model.pth")
-# ckpt["iteration"] = 0
+import torch
+ckpt = torch.load(r"D:\UserD\Li\FSCE-1\checkpoints\mydataset_dla60\dla60.pth")
+ckpt["iteration"] = 0
 
 

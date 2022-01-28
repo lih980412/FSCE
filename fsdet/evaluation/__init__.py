@@ -4,6 +4,6 @@ from .evaluator import DatasetEvaluator, DatasetEvaluators, inference_context, i
 from .lvis_evaluation import LVISEvaluator
 from .pascal_voc_evaluation import PascalVOCDetectionEvaluator
 from .testing import print_csv_format, verify_results
-from .my_evaluetion import NewDatasetEvaluator
+from .my_evaluetion import NewDatasetEvaluator, NewDatasetEvaluator2
 
 __all__ = [k for k in globals().keys() if not k.startswith("_")]

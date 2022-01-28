@@ -1,0 +1,26 @@
+<annotation>
+	<folder>擦伤铁皮</folder>
+	<filename>0008700251 (2).jpg</filename>
+	<path>F:\数据\热轧表面缺陷数据集20220112\擦伤铁皮\0008700251 (2).jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>780</width>
+		<height>144</height>
+		<depth>1</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>scratchIronSheet</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>195</xmin>
+			<ymin>38</ymin>
+			<xmax>213</xmax>
+			<ymax>102</ymax>
+		</bndbox>
+	</object>
+</annotation>

@@ -294,6 +294,9 @@ class EventStorage:
         """
         self._vis_data.append((img_name, img_tensor, self._iter))
 
+    def put_images(self, img_name, img_tensors):
+        self._vis_data.append()
+
     def put_scalar(self, name, value, smoothing_hint=True):
         """
         Add a scalar `value` to the `HistoryBuffer` associated with `name`.

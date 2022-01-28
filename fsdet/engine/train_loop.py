@@ -277,6 +277,7 @@ class SimpleTrainer(TrainerBase):
         lambda_ = beta_distribution.sample([]).item()
         # print("use Mixup")
         data = next(self._data_loader_iter)
+        assert len(data) % 2 == 0, "Batch size must be EVEN when using Mixup."
         data_reverse = data[::-1]
         for i in range(len(data)):
             if data[i]["image"].shape[1] != 700:
@@ -314,14 +315,21 @@ class SimpleTrainer(TrainerBase):
         data = next(self._data_loader_iter)
         # comm.vis_mosaic(data ,id)
         data_time = time.perf_counter() - start
-
+        TensorboradID = 0
         data_new = []
         for i in range(self.cfg.INPUT.MOSAIC_BATCH):
+
             random.shuffle(data)
             data_temp = comm.Mosaic(data[:4])
+            data_temp_ann = comm.vis_mosaic(data_temp)
+            # self.storage.put_image("Mosaic_" + str(self.iter) + "_" + str(TensorboradID), data_temp_ann)
+            self._hooks[4]._writers[2]._writer.add_image("Mosaic_" + str(self.iter) + "_" + str(TensorboradID),
+                                                         data_temp_ann, self.iter)
+            del data_temp_ann
+            TensorboradID += 1
             data_new.append(data_temp)
         # comm.vis_mosaic(data_new ,id)
-        # del data
+        del data
         loss_dict = self.model(data_new)
         '显存不够'
         # if self.iter>5000:

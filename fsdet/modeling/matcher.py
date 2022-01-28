@@ -54,7 +54,7 @@ class Matcher(object):
 
     def __call__(self, match_quality_matrix):
         """
-        Args:
+        Args:   IoU 矩阵
             match_quality_matrix (Tensor[float]): an MxN tensor, containing the
                 pairwise quality between M ground-truth elements and N predicted
                 elements. All elements must be >= 0 (due to the us of `torch.nonzero`

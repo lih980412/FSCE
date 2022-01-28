@@ -222,7 +222,7 @@ class AlbumentationMapper:
                 )
                 for obj in dataset_dict.pop("annotations") if obj.get("iscrowd", 0) == 0
             ]
-            # convert annotations to Instances to be used by detectron2 models
+            # convert annotations to Iannotations_to_instancesnstances to be used by detectron2 models
             instances = utils.annotations_to_instances(annos, image.shape[:2])
             dataset_dict['instances'] = utils.filter_empty_instances(instances)
         # import pdb; pdb.set_trace

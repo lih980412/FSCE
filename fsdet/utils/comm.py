@@ -540,14 +540,26 @@ def Mosaic(data):
     data_temp["instances"].set("gt_classes", cls)
     return data_temp
 
-def vis_mosaic(data, id):
-    pic = np.asarray(data[id]["image"].permute(1, 2, 0))
-    # cv2.imshow("origin", pic)
-    draw_1 = pic
-    tensor = data[id]["instances"].get("gt_boxes").tensor
-    for i in range(len(tensor)):
-        draw_1 = cv2.rectangle(draw_1, (int(tensor[i][0]), int(tensor[i][1])),
-                               (int(tensor[i][2]),  int(tensor[i][3])), (0, 255, 255), 2)
-    cv2.imshow("mosaic", draw_1)
+def vis_mosaic(data, id=-1):
+    if id>=0:
+        pic = np.asarray(data[id]["image"].permute(1, 2, 0))
+        # cv2.imshow("origin", pic)
+        draw_1 = pic
+        gt_box = data[id]["instances"].get("gt_boxes").tensor
+        for i in range(len(gt_box)):
+            draw_1 = cv2.rectangle(draw_1, (int(gt_box[i][0]), int(gt_box[i][1])),
+                                   (int(gt_box[i][2]),  int(gt_box[i][3])), (0, 255, 255), 2)
 
-    cv2.waitKey(0)
+        cv2.imshow("mosaic", draw_1)
+
+        cv2.waitKey(0)
+    else:
+        pic = np.asarray(data["image"].permute(1, 2, 0))
+        # cv2.imshow("origin", pic)
+        draw_1 = pic
+        gt_box = data["instances"].get("gt_boxes").tensor
+        for i in range(len(gt_box)):
+            draw_1 = cv2.rectangle(draw_1, (int(gt_box[i][0]), int(gt_box[i][1])),
+                                   (int(gt_box[i][2]), int(gt_box[i][3])), (0, 255, 255), 2)
+        draw_1 = torch.as_tensor(draw_1)
+        return draw_1.permute(2, 0, 1)

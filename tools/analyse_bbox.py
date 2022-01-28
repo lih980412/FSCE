@@ -123,30 +123,32 @@ def find_img_id(json_images):
 
 
 if __name__ == "__main__":
-    json_file = json.load(open(r"D:\UserD\Li\FSCE-1\datasets\my_dataset\annotations\instances_train.json"))
+    json_file = json.load(open(r"D:\UserD\Li\FSCE-1\datasets\my_dataset_22.01.23\annotations\instances_train.json"))
     annotations = json_file['annotations']
     id2img = find_img_id(json_file['images'])
     data = []
     del json_file
     for anno in annotations:
-        id = anno["image_id"]
-        anno["bbox"].append(int(id))
+        # id = anno["image_id"]
+        # anno["bbox"].append(id)
         data.append(anno["bbox"])
     data = np.array(data)
-    data_wight_height = data[:][:, 2:]
+    data_wight_height = data[:][:, 2: 4]
     data_area = data_wight_height[:, 0] * data_wight_height[:, 1]
     data_area = data_area[:, np.newaxis]
 
     fig = plt.figure()
 
-    # clustercents, ClustDist = kMeans(data_wight_height[:, :2], 3)
-    # # 返回计算完成的聚类中心
-    # print("clustercents:\n", clustercents)
-    # # 输出生成的ClustDist：对应的聚类中心(列1),到聚类中心的距离(列2),行与dataSet一一对应
-    # color_cluster(ClustDist[:, 0:1], data_wight_height, plt, id2img)
-    # # 绘制聚类中心
-    # drawScatter(plt, clustercents, size=20, color='black', mrkr='D')
+    'ASPECT_RATIOS'
+    clustercents, ClustDist = kMeans(data_wight_height[:, :2], 3)
+    # 返回计算完成的聚类中心
+    print("clustercents:\n", clustercents)
+    # 输出生成的ClustDist：对应的聚类中心(列1),到聚类中心的距离(列2),行与dataSet一一对应
+    color_cluster(ClustDist[:, 0:1], data_wight_height, plt, id2img)
+    # 绘制聚类中心
+    drawScatter(plt, clustercents, size=20, color='black', mrkr='D')
 
+    'SIZES'
     bboxarea, ClustDist_bbox = kMeans(data_area, 5)
     # 返回计算完成的聚类中心
     print("bboxarea:\n", bboxarea)

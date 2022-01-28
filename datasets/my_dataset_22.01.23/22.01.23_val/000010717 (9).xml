@@ -1,0 +1,26 @@
+<annotation>
+	<folder>边部裂纹_641</folder>
+	<filename>000010717 (9).jpg</filename>
+	<path>K:\课题组\课题9热轧表面缺陷检测\热轧表面缺陷数据集20220112\边部裂纹_641\000010717 (9).jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>780</width>
+		<height>144</height>
+		<depth>1</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>edgeCrack</name>
+		<pose>Unspecified</pose>
+		<truncated>1</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>288</xmin>
+			<ymin>1</ymin>
+			<xmax>310</xmax>
+			<ymax>106</ymax>
+		</bndbox>
+	</object>
+</annotation>

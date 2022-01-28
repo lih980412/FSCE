@@ -198,10 +198,6 @@ class FastRCNNOutputs(object):
             storage.put_scalar("fast_rcnn/fg_cls_accuracy", fg_num_accurate / num_fg)
             storage.put_scalar("fast_rcnn/false_negative", num_false_negative / num_fg)
 
-
-
-
-
     def softmax_cross_entropy_loss(self):
         """
         Compute the softmax cross entropy loss for box classification.

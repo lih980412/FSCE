@@ -34,6 +34,7 @@ from fsdet.evaluation import (
     PascalVOCDetectionEvaluator,
     verify_results,
     NewDatasetEvaluator,
+    NewDatasetEvaluator2,
 )
 
 # from fsdet.data.dataset_mapper import AlbumentationMapper
@@ -62,6 +63,8 @@ class Trainer(DefaultTrainer):
         if evaluator_type == "mydateset":
             # mydataset
             evaluator_list.append(NewDatasetEvaluator(dataset_name, cfg, True, output_folder))
+        if evaluator_type == "mydataset2":
+            evaluator_list.append(NewDatasetEvaluator2(dataset_name, cfg, True, output_folder))
         if evaluator_type == "coco":
             # coco
             evaluator_list.append(COCOEvaluator(dataset_name, cfg, True, output_folder))

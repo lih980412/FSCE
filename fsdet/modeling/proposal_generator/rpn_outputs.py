@@ -2,7 +2,7 @@
 import itertools
 import logging
 import numpy as np
-import torch
+import torch, math
 import torch.nn.functional as F
 from fvcore.nn import smooth_l1_loss
 from fsdet.modeling.focal_loss import BCEFocalLoss
@@ -180,13 +180,13 @@ def rpn_losses(
     )
 
     valid_masks = gt_objectness_logits >= 0
-    # objectness_loss = F.binary_cross_entropy_with_logits(
-    #     pred_objectness_logits[valid_masks],
-    #     gt_objectness_logits[valid_masks].to(torch.float32),
-    #     reduction="sum",
-    # )
+    objectness_loss = F.binary_cross_entropy_with_logits(
+        pred_objectness_logits[valid_masks],
+        gt_objectness_logits[valid_masks].to(torch.float32),
+        reduction="sum",
+    )
 
-    objectness_loss = BCEFocalLoss(pred_objectness_logits[valid_masks], gt_objectness_logits[valid_masks].to(torch.float32), alpha=rpn_focal_alpha, gamma=rpn_focal_gamma)
+    # objectness_loss = BCEFocalLoss(pred_objectness_logits[valid_masks], gt_objectness_logits[valid_masks].to(torch.float32), alpha=rpn_focal_alpha, gamma=rpn_focal_gamma)
     return objectness_loss, localization_loss
 
 
@@ -251,6 +251,65 @@ class RPNOutputs(object):
         self.smooth_l1_beta = smooth_l1_beta
         self.rpn_focal_alpha = rpn_focal_alpha
         self.rpn_focal_gamma = rpn_focal_gamma
+
+
+    def apply_deltas(self, deltas, boxes):
+        """
+        Apply transformation `deltas` (dx, dy, dw, dh) to `boxes`.
+
+        Args:
+            deltas (Tensor): transformation deltas of shape (N, k*4), where k >= 1.
+                deltas[i] represents k potentially different class-specific
+                box transformations for the single box boxes[i].
+            boxes (Tensor): boxes to transform, of shape (N, 4)
+        """
+        assert torch.isfinite(deltas).all().item(), "Box regression deltas become infinite or NaN!"
+        boxes = boxes.to(deltas.dtype)
+
+        widths = boxes[:, 2] - boxes[:, 0]
+        heights = boxes[:, 3] - boxes[:, 1]
+        ctr_x = boxes[:, 0] + 0.5 * widths
+        ctr_y = boxes[:, 1] + 0.5 * heights
+
+        wx, wy, ww, wh = (1.0, 1.0, 1.0, 1.0)
+        dx = deltas[:, 0::4] / wx
+        dy = deltas[:, 1::4] / wy
+        dw = deltas[:, 2::4] / ww
+        dh = deltas[:, 3::4] / wh
+
+        # Prevent sending too large values into torch.exp()
+        scale_clamp = math.log(1000.0 / 16)
+        dw = torch.clamp(dw, max=scale_clamp)
+        dh = torch.clamp(dh, max=scale_clamp)
+
+        pred_ctr_x = dx * widths[:, None] + ctr_x[:, None]
+        pred_ctr_y = dy * heights[:, None] + ctr_y[:, None]
+        pred_w = torch.exp(dw) * widths[:, None]
+        pred_h = torch.exp(dh) * heights[:, None]
+
+        pred_boxes = torch.zeros_like(deltas)
+        pred_boxes[:, 0::4] = pred_ctr_x - 0.5 * pred_w  # x1
+        pred_boxes[:, 1::4] = pred_ctr_y - 0.5 * pred_h  # y1
+        pred_boxes[:, 2::4] = pred_ctr_x + 0.5 * pred_w  # x2
+        pred_boxes[:, 3::4] = pred_ctr_y + 0.5 * pred_h  # y2
+        return pred_boxes
+
+    def visPosNegAnchor(self, strides):
+        B = 4
+
+
+        image_anchor_per_feature_map_deltas = [
+            # Reshape: (N, A*B, Hi, Wi) -> (N, A, B, Hi, Wi) -> (N, Hi, Wi, A, B)
+            #          -> (N, Hi*Wi*A, B)
+            x.view(x.shape[0], -1, B, x.shape[-2], x.shape[-1])
+                .permute(0, 3, 4, 1, 2)
+                .reshape(4, -1, B)
+            for x in self.pred_anchor_deltas
+        ]
+        image_anchor_per_featuremap = self.apply_deltas(image_anchor_per_feature_map_deltas, )
+
+
+
 
     def _get_ground_truth(self):
         """
@@ -450,3 +509,6 @@ class RPNOutputs(object):
             for score in self.pred_objectness_logits
         ]
         return pred_objectness_logits
+
+
+

@@ -49,7 +49,7 @@ MODEL:
   RPN:
 #    IN_FEATURES:
 #    - level5
-    POST_NMS_TOPK_TRAIN: 4000 # 2
+#    POST_NMS_TOPK_TRAIN: 4000 # 2 FSCE原文中的trick，但是 PRE_NMS_TOPK_TRAIN 只有2000个，这里增加为4000似乎也没用
     FOCAL_ALPHA: 0.25
     FOCAL_GAMMA: 2.
 DATASETS:

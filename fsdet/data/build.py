@@ -181,7 +181,45 @@ def get_detection_dataset_dicts(dataset_names, filter_empty=True):
     return dataset_dicts
 
 
-def build_detection_train_loader(cfg, mapper=None):
+# def get_crossdomain_dataset_dicts(dataset_names, filter_empty=True):
+#     """
+#     Load and prepare dataset dicts for instance detection.
+#
+#     Args:
+#         dataset_names (list[str]): a list of dataset names
+#         filter_empty (bool): whether to filter out images without instance annotations
+#     """
+#     assert len(dataset_names)
+#     dataset_dict1, dataset_dict2 = [DatasetCatalog.get(dataset_name) for dataset_name in dataset_names]
+#     for dataset_name, dicts in zip(dataset_names, dataset_dict1):
+#         assert len(dicts), "Dataset '{}' is empty!".format(dataset_name)
+#     for dataset_name, dicts in zip(dataset_names, dataset_dict2):
+#         assert len(dicts), "Dataset '{}' is empty!".format(dataset_name)
+#
+#     dataset_dict1 = list(itertools.chain.from_iterable([dataset_dict1]))
+#     dataset_dict2 = list(itertools.chain.from_iterable([dataset_dict2]))
+#     # dataset_dicts = list(itertools.chain.from_iterable(dataset_dicts))
+#
+#     has_instances = "annotations" in dataset_dict1[0]
+#     if filter_empty and has_instances:
+#         dataset_dict1 = filter_images_with_only_crowd_annotations(dataset_dict1)
+#         dataset_dict2 = filter_images_with_only_crowd_annotations(dataset_dict2)
+#
+#     if has_instances:
+#         try:
+#             class_names1 = MetadataCatalog.get(dataset_names[0]).thing_classes
+#             check_metadata_consistency("thing_classes", (dataset_names[0]))
+#             print_instances_class_histogram(dataset_dict1, class_names1)
+#
+#             class_names2 = MetadataCatalog.get(dataset_names[1]).thing_classes
+#             check_metadata_consistency("thing_classes", (dataset_names[1]))
+#             print_instances_class_histogram(dataset_dict2, class_names2)
+#         except AttributeError:  # class names are not available for this dataset
+#             pass
+#     return (dataset_dict1, dataset_dict2)
+
+
+def build_detection_train_loader(cfg, aux=None, mapper=None):
     """
     A data loader is created by the following steps:
 
@@ -213,11 +251,16 @@ def build_detection_train_loader(cfg, mapper=None):
         images_per_batch, num_workers
     )
     images_per_worker = images_per_batch // num_workers
-
-    dataset_dicts = get_detection_dataset_dicts(
-        cfg.DATASETS.TRAIN,
-        filter_empty=cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS,
-    )
+    if not aux:
+        dataset_dicts = get_detection_dataset_dicts(
+            cfg.DATASETS.TRAIN,
+            filter_empty=cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS,
+        )
+    else:
+        dataset_dicts = get_detection_dataset_dicts(
+            cfg.DATASETS.TRAIN_AUX,
+            filter_empty=cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS,
+        )
     dataset = DatasetFromList(dataset_dicts, copy=False)
 
     # Bin edges for batching images with similar aspect ratios. If ASPECT_RATIO_GROUPING
@@ -226,7 +269,7 @@ def build_detection_train_loader(cfg, mapper=None):
     aspect_ratios = [float(img["height"]) / float(img["width"]) for img in dataset]
 
     if mapper is None:
-        mapper = DatasetMapper(cfg, True)
+        mapper = DatasetMapper(cfg, True, aux)
     # current mappers in dataset_mapper.py will not convert crowd annotations to Instances
     dataset = MapDataset(dataset, mapper)
 
@@ -253,6 +296,55 @@ def build_detection_train_loader(cfg, mapper=None):
         worker_init_fn=worker_init_reset_seed,
     )
     return data_loader
+
+    # dataset_dicts1 = get_detection_dataset_dicts(
+    #     cfg.DATASETS.TRAIN,
+    #     filter_empty=cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS,
+    # )
+    # dataset_dicts2 = get_detection_dataset_dicts(
+    #     cfg.DATASETS.TRAIN_AUX,
+    #     filter_empty=cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS,
+    # )
+    # dataset1 = DatasetFromList(dataset_dicts1, copy=False)
+    # dataset2 = DatasetFromList(dataset_dicts2, copy=False)
+    #
+    # group_bin_edges = [1] if cfg.DATALOADER.ASPECT_RATIO_GROUPING else []
+    # aspect_ratios1 = [float(img["height"]) / float(img["width"]) for img in dataset1]
+    # aspect_ratios2 = [float(img["height"]) / float(img["width"]) for img in dataset2]
+    #
+    # if mapper is None:
+    #     mapper = DatasetMapper(cfg, True)
+    # # current mappers in dataset_mapper.py will not convert crowd annotations to Instances
+    # dataset1 = MapDataset(dataset1, mapper)
+    # dataset2 = MapDataset(dataset2, mapper)
+    #
+    # sampler_name = cfg.DATALOADER.SAMPLER_TRAIN
+    # logger = logging.getLogger(__name__)
+    # logger.info("Using training sampler {}".format(sampler_name))
+    # if sampler_name == "TrainingSampler":
+    #     sampler = samplers.TrainingSampler(len(dataset))
+    # elif sampler_name == "RepeatFactorTrainingSampler":
+    #     sampler = samplers.RepeatFactorTrainingSampler(
+    #         dataset_dicts, cfg.DATALOADER.REPEAT_THRESHOLD
+    #     )
+    # else:
+    #     raise ValueError("Unknown training sampler: {}".format(sampler_name))
+    # batch_sampler = build_batch_data_sampler(
+    #     sampler, images_per_worker, group_bin_edges, aspect_ratios
+    # )
+    #
+    # data_loader = torch.utils.data.DataLoader(
+    #     dataset,
+    #     num_workers=cfg.DATALOADER.NUM_WORKERS,
+    #     batch_sampler=batch_sampler,
+    #     collate_fn=trivial_batch_collator,
+    #     worker_init_fn=worker_init_reset_seed,
+    # )
+    # return data_loader
+
+
+
+
 
 
 def build_detection_test_loader(cfg, dataset_name, mapper=None):

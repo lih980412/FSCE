@@ -110,7 +110,7 @@ class FPN(Backbone):
     def size_divisibility(self):
         return self._size_divisibility
 
-    def forward(self, x):
+    def forward(self, x, aux_x=None):
         """
         Args:
             input (dict[str: Tensor]): mapping feature map name (e.g., "res5") to
@@ -124,7 +124,7 @@ class FPN(Backbone):
                 ["p2", "p3", ..., "p6"].
         """
         # Reverse feature maps into top-down order (from low to high resolution)
-        bottom_up_features = self.bottom_up(x)
+        bottom_up_features = self.bottom_up(x, aux_x)
         x = [bottom_up_features[f] for f in self.in_features[::-1]]
         results = []
         prev_features = self.lateral_convs[0](x[0])

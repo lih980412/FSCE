@@ -13,6 +13,10 @@ import torch
 # MultiStepLR with WarmupLR but the current LRScheduler design doesn't allow it.
 
 
+
+
+
+
 class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
     def __init__(
         self,
@@ -34,11 +38,13 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
         self.warmup_iters = warmup_iters
         self.warmup_method = warmup_method
         super().__init__(optimizer, last_epoch)
+        # self.base_lrs = [group['initial_lr'] for group in optimizer.param_groups]
 
     def get_lr(self) -> List[float]:
         warmup_factor = _get_warmup_factor_at_iter(
             self.warmup_method, self.last_epoch, self.warmup_iters, self.warmup_factor
         )
+        # print(self.last_epoch)
         return [
             base_lr * warmup_factor * self.gamma ** bisect_right(self.milestones, self.last_epoch)
             for base_lr in self.base_lrs

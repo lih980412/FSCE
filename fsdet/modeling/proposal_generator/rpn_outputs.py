@@ -7,10 +7,12 @@ import torch.nn.functional as F
 from fvcore.nn import smooth_l1_loss
 from fsdet.modeling.focal_loss import BCEFocalLoss
 from fsdet.layers import batched_nms, cat
-from fsdet.structures import Boxes, Instances, pairwise_iou
+from fsdet.structures import Boxes, Instances, pairwise_iou, pairwise_giou, pairwise_diou, pairwise_ciou
 from fsdet.utils.events import get_event_storage
 
 from ..sampling import subsample_labels
+
+import cv2
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +45,14 @@ Naming convention:
 
 
 def find_top_rpn_proposals(
-    proposals,
-    pred_objectness_logits,
-    images,
-    nms_thresh,
-    pre_nms_topk,
-    post_nms_topk,
-    min_box_side_len,
-    training,
+        proposals,
+        pred_objectness_logits,
+        images,
+        nms_thresh,
+        pre_nms_topk,
+        post_nms_topk,
+        min_box_side_len,
+        training,
 ):
     """
     For each feature map, select the `pre_nms_topk` highest scoring proposals,
@@ -91,7 +93,7 @@ def find_top_rpn_proposals(
     level_ids = []  # #lvl Tensor, each of shape (topk,)
     batch_idx = torch.arange(num_images, device=device)
     for level_id, proposals_i, logits_i in zip(
-        itertools.count(), proposals, pred_objectness_logits
+            itertools.count(), proposals, pred_objectness_logits
     ):
         Hi_Wi_A = logits_i.shape[1]
         num_proposals_i = min(pre_nms_topk, Hi_Wi_A)
@@ -144,17 +146,49 @@ def find_top_rpn_proposals(
     return results
 
 
+def rpn_losses_diou(
+        gt_objectness_logits,
+        gt_boxes,
+        pred_objectness_logits,
+        predict_proposals,
+        img,
+):
+    pos_masks = gt_objectness_logits == 1
+    gt_proposal = cat([x for x in gt_boxes], dim=0)
+    pre_proposal = cat([x.reshape(-1, 4) for x in predict_proposals], dim=0)
+    localization_loss = pairwise_ciou(gt_proposal[pos_masks], pre_proposal[pos_masks])
 
+    'vis'
+    # img_np = np.asarray(img[0].permute(1, 2, 0).cpu())
+    # img_np = np.ascontiguousarray(img_np)
+    # result = pre_proposal[pos_masks]
+    # for i in range(len(result)):
+    #     cv2.rectangle(img_np, (int(result[i][0]), int(result[i][1])), (int(result[i][2]), int(result[i][3])),
+    #                   color=(0, 0, 228), thickness=1)
+    # cv2.imshow('1', img_np)
+    # cv2.waitKey(0)
+
+    valid_masks = gt_objectness_logits >= 0
+    objectness_loss = F.binary_cross_entropy_with_logits(
+        pred_objectness_logits[valid_masks],
+        gt_objectness_logits[valid_masks].to(torch.float32),
+        reduction="sum",
+    )
+    # objectness_loss = softmax_cross_entropy_loss_label_smooth(pred_objectness_logits[valid_masks],
+    #                                                           gt_objectness_logits[valid_masks].to(torch.float32), index)
+
+
+    return objectness_loss, localization_loss
 
 
 def rpn_losses(
-    gt_objectness_logits,
-    gt_anchor_deltas,
-    pred_objectness_logits,
-    pred_anchor_deltas,
-    smooth_l1_beta,
-    rpn_focal_alpha,
-    rpn_focal_gamma
+        gt_objectness_logits,
+        gt_anchor_deltas,
+        pred_objectness_logits,
+        pred_anchor_deltas,
+        smooth_l1_beta,
+        rpn_focal_alpha,
+        rpn_focal_gamma
 ):
     """
     Args:
@@ -189,24 +223,35 @@ def rpn_losses(
     # objectness_loss = BCEFocalLoss(pred_objectness_logits[valid_masks], gt_objectness_logits[valid_masks].to(torch.float32), alpha=rpn_focal_alpha, gamma=rpn_focal_gamma)
     return objectness_loss, localization_loss
 
+def softmax_cross_entropy_loss_label_smooth(pred_objectness_logits, gt_objectness_logits, index):
+    smoothing = 0.1
+    confidence = 1 - smoothing
+
+    logprobs = F.log_softmax(pred_objectness_logits, dim=-1)
+    nll_loss = -logprobs.gather(dim=-1, index=index)
+    nll_loss = nll_loss.squeeze(1)
+    smooth_loss = -logprobs.mean(dim=-1)
+    loss = confidence * nll_loss + smoothing * smooth_loss
+    return loss.mean()
 
 class RPNOutputs(object):
     def __init__(
-        self,
-        box2box_transform,
-        anchor_matcher,
-        batch_size_per_image,
-        positive_fraction,
-        images,
-        pred_objectness_logits,
-        pred_anchor_deltas,
-        anchors,
+            self,
+            box2box_transform,
+            anchor_matcher,
+            batch_size_per_image,
+            positive_fraction,
+            images,
+            pred_objectness_logits,
+            pred_anchor_deltas,
+            anchors,
 
-        boundary_threshold=0,
-        gt_boxes=None,
-        smooth_l1_beta=0.0,
-        rpn_focal_alpha = 0.25,
-        rpn_focal_gamma = 2
+            boundary_threshold=0,
+            gt_boxes=None,
+            smooth_l1_beta=0.0,
+            rpn_focal_alpha=0.25,
+            rpn_focal_gamma=2,
+            strides=[]
     ):
         """
         Args:
@@ -235,23 +280,24 @@ class RPNOutputs(object):
                 the smooth L1 loss function. When set to 0, the loss becomes L1. When
                 set to +inf, the loss becomes constant 0.
         """
-        self.box2box_transform = box2box_transform              # get and apply deltas
+        self.box2box_transform = box2box_transform  # get and apply deltas
         self.anchor_matcher = anchor_matcher
-        self.batch_size_per_image = batch_size_per_image        # 256
-        self.positive_fraction = positive_fraction              # 0.5
-        self.pred_objectness_logits = pred_objectness_logits    # [p2, p3, p4, p5, p6]
+        self.batch_size_per_image = batch_size_per_image  # 256
+        self.positive_fraction = positive_fraction  # 0.5
+        self.pred_objectness_logits = pred_objectness_logits  # [p2, p3, p4, p5, p6]
         self.pred_anchor_deltas = pred_anchor_deltas
 
-        self.anchors = anchors                                  # List[List[Boxes], len=5], len=2
+        self.anchors = anchors  # List[List[Boxes], len=5], len=2
         self.gt_boxes = gt_boxes
         self.num_feature_maps = len(pred_objectness_logits)
+        self.images = images
         self.num_images = len(images)
         self.image_sizes = images.image_sizes
-        self.boundary_threshold = boundary_threshold            # threshold to remove anchors outside the image
+        self.boundary_threshold = boundary_threshold  # threshold to remove anchors outside the image
         self.smooth_l1_beta = smooth_l1_beta
         self.rpn_focal_alpha = rpn_focal_alpha
         self.rpn_focal_gamma = rpn_focal_gamma
-
+        self.strides = strides
 
     def apply_deltas(self, deltas, boxes):
         """
@@ -294,10 +340,37 @@ class RPNOutputs(object):
         pred_boxes[:, 3::4] = pred_ctr_y + 0.5 * pred_h  # y2
         return pred_boxes
 
-    def visPosNegAnchor(self, strides):
+    def visPosNegAnchor(self, strides, images, gt_objectness_logits):
+
+        # # anchor_per_img 是每一张图片的 anchor（包含5个不同大小的特征图上的 anchor）
+        # # img 为图片
+        # # stride 为下采样倍数，将不同特征图上的 anchor 乘以对应 stride 的1/2还原到原图
+        # count = 1
+        # for anchor_per_img, img in zip(self.anchors, images.tensor):
+        #
+        #     '处理 img'
+        #     img_np = np.asarray(img.permute(1, 2, 0).cpu())
+        #     img_np = np.ascontiguousarray(img_np)
+        #     '处理 anchor'
+        #     # 不同大小特征图上的 anchor
+        #     for i in range(len(anchor_per_img)):
+        #         # self.anchors[0][0].tensor.clamp_(min=0)
+        #         # self.anchors[0][0].tensor = self.anchors[0][0].tensor * 2
+        #         # anchors_np = np.asarray(self.anchors[0][0].tensor.cpu())
+        #         anchor_per_img[i].tensor.clamp_(min=0)
+        #         anchor_per_img[i].tensor *= strides[i]/2
+        #         anchors_np = np.asarray(anchor_per_img[i].tensor.cpu())
+        #         '将 anchor 绘制在 img 上'
+        #         # for i in range(anchors_np.shape[0]):
+        #         for i in range(40, 55):
+        #             cv2.rectangle(img_np, (int(anchors_np[i][0]), int(anchors_np[i][1])), (int(anchors_np[i][2]), int(anchors_np[i][3])), color=(0, 228, 0), thickness=1)
+        #         for i in range(56, 70):
+        #             cv2.rectangle(img_np, (int(anchors_np[i][0]), int(anchors_np[i][1])), (int(anchors_np[i][2]), int(anchors_np[i][3])), color=(228, 0, 0), thickness=1)
+        #         cv2.imshow(f"{count}", img_np)
+        #         cv2.waitKey(0)
+        #     count += 1
+
         B = 4
-
-
         image_anchor_per_feature_map_deltas = [
             # Reshape: (N, A*B, Hi, Wi) -> (N, A, B, Hi, Wi) -> (N, Hi, Wi, A, B)
             #          -> (N, Hi*Wi*A, B)
@@ -306,10 +379,38 @@ class RPNOutputs(object):
                 .reshape(4, -1, B)
             for x in self.pred_anchor_deltas
         ]
-        image_anchor_per_featuremap = self.apply_deltas(image_anchor_per_feature_map_deltas, )
+        anchor_deltas = []
+        for i in range(self.num_images):
+            anchor_deltas_per_image = []
+            for feature_anchor in enumerate(image_anchor_per_feature_map_deltas):
+                anchor_deltas_per_image.append(feature_anchor[1][i])
+            anchor_deltas.append(anchor_deltas_per_image)
 
-
-
+        for img_i in range(len(anchor_deltas)):
+            img_np = np.asarray(images.tensor[img_i].permute(1, 2, 0).cpu())
+            img_np = np.ascontiguousarray(img_np)
+            proposal_per_image = []
+            for (feature_j, stride) in zip(range(len(anchor_deltas[img_i])), strides):
+                image_proposal_per_featuremap = self.apply_deltas(anchor_deltas[img_i][feature_j],
+                                                                  self.anchors[img_i][feature_j].tensor)
+                temp = []
+                # stride /= 2
+                for j in range(image_proposal_per_featuremap.shape[0]):
+                # for j in range(200):
+                #     image_proposal_per_featuremap[j] *= stride
+                    temp.append(image_proposal_per_featuremap[j])
+                proposal_per_image.append(temp)
+            result = [element for lis in proposal_per_image for element in lis]
+            # 将装有tensor的list转为装有tensor的tensor
+            result = torch.stack(result, 0)
+            pos_masks = gt_objectness_logits[img_i] == 1
+            result = result[pos_masks]
+            print(len(result))
+            for i in range(len(result)):
+                cv2.rectangle(img_np, (int(result[i][0]), int(result[i][1])), (int(result[i][2]), int(result[i][3])),
+                                  color=(0, 0, 228), thickness=1)
+            cv2.imshow('1', img_np)
+            cv2.waitKey(0)
 
     def _get_ground_truth(self):
         """
@@ -321,6 +422,7 @@ class RPNOutputs(object):
         """
         gt_objectness_logits = []
         gt_anchor_deltas = []
+        gt_boxes = []
         # Concatenate anchors from all feature maps into a single Boxes per image
         anchors = [Boxes.cat(anchors_i) for anchors_i in self.anchors]
         for image_size_i, anchors_i, gt_boxes_i in zip(self.image_sizes, anchors, self.gt_boxes):
@@ -343,6 +445,7 @@ class RPNOutputs(object):
             if len(gt_boxes_i) == 0:
                 # These values won't be used anyway since the anchor is labeled as background
                 gt_anchor_deltas_i = torch.zeros_like(anchors_i.tensor)
+                matched_gt_boxes = gt_anchor_deltas_i
             else:
                 # TODO wasted computation for ignored boxes
                 matched_gt_boxes = gt_boxes_i[matched_idxs]
@@ -352,8 +455,9 @@ class RPNOutputs(object):
 
             gt_objectness_logits.append(gt_objectness_logits_i)
             gt_anchor_deltas.append(gt_anchor_deltas_i)
+            gt_boxes.append(matched_gt_boxes.tensor)
 
-        return gt_objectness_logits, gt_anchor_deltas
+        return gt_objectness_logits, gt_anchor_deltas, gt_boxes
 
     def losses(self):
         """
@@ -388,7 +492,11 @@ class RPNOutputs(object):
         """
         # 这一步是对未经筛选所有 anchors，找到对应的 gt （MxN，N 是非常大的数目，所有 p_level 合并的）
         # gt_objectness_logits in [0, -1, 1]
-        gt_objectness_logits, gt_anchor_deltas = self._get_ground_truth()
+        gt_objectness_logits, gt_anchor_deltas, gt_boxes = self._get_ground_truth()
+
+        '显示 RPN 中正负 anchor 思路'
+        # image_anchor_per_featuremap_deltas -> image_anchor_per_featuremap -> * self.anchor_generator.strides -> upsample back to orginal image
+        # self.visPosNegAnchor(self.strides, self.images, gt_objectness_logits)
 
         # Collect all objectness labels and delta targets over feature maps and images
         # The final ordering is L, N, H, W, A from slowest to fastest axis.
@@ -443,8 +551,8 @@ class RPNOutputs(object):
                 # Reshape: (N, A*B, Hi, Wi) -> (N, A, B, Hi, Wi) -> (N, Hi, Wi, A, B)
                 #          -> (N*Hi*Wi*A, B)
                 x.view(x.shape[0], -1, B, x.shape[-2], x.shape[-1])
-                .permute(0, 3, 4, 1, 2)
-                .reshape(-1, B)
+                    .permute(0, 3, 4, 1, 2)
+                    .reshape(-1, B)
                 for x in self.pred_anchor_deltas
             ],
             dim=0,
@@ -458,12 +566,126 @@ class RPNOutputs(object):
             self.rpn_focal_alpha,
             self.rpn_focal_gamma
         )
+
+        # objectness_loss, localization_loss = rpn_losses_diou(
+        #     gt_objectness_logits,
+        #     gt_boxes,
+        #     pred_objectness_logits,
+        #     self.predict_proposals(),
+        #     self.images.tensor,
+        # )
+
         normalizer = 1.0 / (self.batch_size_per_image * self.num_images)
         loss_cls = objectness_loss * normalizer  # cls: classification loss
         loss_loc = localization_loss * normalizer  # loc: localization loss
         losses = {"loss_rpn_cls": loss_cls, "loss_rpn_loc": loss_loc}
 
         return losses
+
+    # def diou_losses(self):
+    #
+    #     def resample(label):
+    #         """
+    #         Randomly sample a subset of positive and negative examples by overwriting
+    #         the label vector to the ignore value (-1) for all elements that are not
+    #         included in the sample.
+    #         """
+    #         pos_idx, neg_idx = subsample_labels(
+    #             label, self.batch_size_per_image, self.positive_fraction, 0
+    #         )
+    #         # Fill with the ignore label (-1), then set positive and negative labels
+    #         label.fill_(-1)
+    #         label.scatter_(0, pos_idx, 1)
+    #         label.scatter_(0, neg_idx, 0)
+    #         return label
+    #
+    #
+    #     gt_objectness_logits = []
+    #     gt_boxes = []
+    #     # Concatenate anchors from all feature maps into a single Boxes per image
+    #     anchors = [Boxes.cat(anchors_i) for anchors_i in self.anchors]
+    #     for image_size_i, anchors_i, gt_boxes_i in zip(self.image_sizes, anchors, self.gt_boxes):
+    #         """
+    #         image_size_i: (h, w) for the i-th image
+    #         anchors_i: anchors for i-th image
+    #         gt_boxes_i: ground-truth boxes for i-th image
+    #         """
+    #         match_quality_matrix = pairwise_iou(gt_boxes_i, anchors_i)
+    #         # matched_idxs is the ground-truth index in [0, M)
+    #         # gt_objectness_logits_i is [0, -1, 1] indicating proposal is true positive, ignored or false positive
+    #         matched_idxs, gt_objectness_logits_i = self.anchor_matcher(match_quality_matrix)
+    #
+    #         if self.boundary_threshold >= 0:
+    #             # Discard anchors that go out of the boundaries of the image
+    #             # NOTE: This is legacy functionality that is turned off by default in Detectron2
+    #             anchors_inside_image = anchors_i.inside_box(image_size_i, self.boundary_threshold)
+    #             gt_objectness_logits_i[~anchors_inside_image] = -1
+    #
+    #         if len(gt_boxes_i) == 0:
+    #             # These values won't be used anyway since the anchor is labeled as background
+    #             matched_gt_boxes_i = torch.zeros_like(anchors_i.tensor)
+    #         else:
+    #             # TODO wasted computation for ignored boxes
+    #             matched_gt_boxes_i = gt_boxes_i[matched_idxs]
+    #
+    #         gt_objectness_logits.append(gt_objectness_logits_i)
+    #         gt_boxes.append(matched_gt_boxes_i.tensor)
+    #
+    #     num_anchors_per_map = [np.prod(x.shape[1:]) for x in self.pred_objectness_logits]
+    #     num_anchors_per_image = sum(num_anchors_per_map)
+    #
+    #     # Stack to: (N, num_anchors_per_image), e.g., torch.Size([2, 247086])
+    #     gt_objectness_logits = torch.stack(
+    #         # resample +1/-1 to fraction 0.5, inplace modify other laberls to -1
+    #         # -1 will be ingored in loss calculation function
+    #         # NOTE: in VOC, not enough positive sample pairs, 12-24 out of 256 are positive.
+    #         # NOTE: 负样本是从 247086 里面随机抽出来 512 - pos 的
+    #         [resample(label) for label in gt_objectness_logits], dim=0
+    #     )
+    #
+    #     # Log the number of positive/negative anchors per-image that's used in training
+    #     num_pos_anchors = (gt_objectness_logits == 1).sum().item()
+    #     num_neg_anchors = (gt_objectness_logits == 0).sum().item()
+    #     storage = get_event_storage()
+    #     storage.put_scalar("rpn/num_pos_anchors", num_pos_anchors / self.num_images)
+    #     storage.put_scalar("rpn/num_neg_anchors", num_neg_anchors / self.num_images)
+    #
+    #     assert gt_objectness_logits.shape[1] == num_anchors_per_image
+    #     # Split to tuple of L tensors, each with shape (N, num_anchors_per_map)
+    #     gt_objectness_logits = torch.split(gt_objectness_logits, num_anchors_per_map, dim=1)
+    #     # Concat from all feature maps
+    #     gt_objectness_logits = cat([x.flatten() for x in gt_objectness_logits], dim=0)
+    #
+    #     pred_objectness_logits = cat(
+    #         [
+    #             # Reshape: (N, A, Hi, Wi) -> (N, Hi, Wi, A) -> (N*Hi*Wi*A, )
+    #             x.permute(0, 2, 3, 1).flatten()
+    #             for x in self.pred_objectness_logits
+    #         ],
+    #         dim=0,
+    #     )
+    #
+    #     '回归损失'
+    #     pos_masks = gt_objectness_logits == 1
+    #     gt_proposal = cat([x for x in gt_boxes], dim=0)
+    #     pre_proposal = cat([x.reshape(-1, 4) for x in self.predict_proposals()], dim=0)
+    #     localization_loss = pairwise_diou(gt_proposal[pos_masks], pre_proposal[pos_masks])
+    #
+    #     '分类损失'
+    #     valid_masks = gt_objectness_logits >= 0
+    #     objectness_loss = F.binary_cross_entropy_with_logits(
+    #         pred_objectness_logits[valid_masks],
+    #         gt_objectness_logits[valid_masks].to(torch.float32),
+    #         reduction="sum",
+    #     )
+    #
+    #     normalizer = 1.0 / (self.batch_size_per_image * self.num_images)
+    #     loss_cls = objectness_loss * normalizer  # cls: classification loss
+    #     # loss_loc = localization_loss  # loc: localization loss
+    #     loss_loc = localization_loss * normalizer / 2 # loc: localization loss
+    #     losses = {"loss_rpn_cls": loss_cls, "loss_rpn_loc": loss_loc}
+    #
+    #     return losses
 
     def predict_proposals(self):
         """
@@ -509,6 +731,4 @@ class RPNOutputs(object):
             for score in self.pred_objectness_logits
         ]
         return pred_objectness_logits
-
-
 

@@ -10,6 +10,7 @@ from fsdet.layers import batched_nms, cat
 from fsdet.structures import Boxes, Instances
 from fsdet.utils.events import get_event_storage
 from fsdet.utils.registry import Registry
+from fsdet.structures.boxes import pairwise_giou, pairwise_diou, pairwise_ciou
 
 
 ROI_HEADS_OUTPUT_REGISTRY = Registry("ROI_HEADS_OUTPUT")
@@ -198,6 +199,9 @@ class FastRCNNOutputs(object):
             storage.put_scalar("fast_rcnn/fg_cls_accuracy", fg_num_accurate / num_fg)
             storage.put_scalar("fast_rcnn/false_negative", num_false_negative / num_fg)
 
+
+
+
     def softmax_cross_entropy_loss(self):
         """
         Compute the softmax cross entropy loss for box classification.
@@ -207,6 +211,54 @@ class FastRCNNOutputs(object):
         """
         self._log_accuracy()
         return F.cross_entropy(self.pred_class_logits, self.gt_classes, reduction="mean")
+
+    def softmax_cross_entropy_loss_label_smooth(self):
+        self._log_accuracy()
+        smoothing = 0.1
+        confidence = 1 - smoothing
+
+        logprobs = F.log_softmax(self.pred_class_logits, dim=-1)
+        nll_loss = -logprobs.gather(dim=-1, index=self.gt_classes.unsqueeze(1))
+        nll_loss = nll_loss.squeeze(1)
+        smooth_loss = -logprobs.mean(dim=-1)
+        loss = confidence * nll_loss + smoothing * smooth_loss
+        return loss.mean()
+
+    def diou_loss(self, image=None):
+
+        box_dim = self.gt_boxes.tensor.size(1)  # 4 or 5
+        cls_agnostic_bbox_reg = self.pred_proposal_deltas.size(1) == box_dim
+        device = self.pred_proposal_deltas.device
+        bg_class_ind = self.pred_class_logits.shape[1] - 1
+        fg_inds = torch.nonzero((self.gt_classes >= 0) & (self.gt_classes < bg_class_ind)).squeeze(
+            1
+        )
+        if cls_agnostic_bbox_reg:
+            # pred_proposal_deltas only corresponds to foreground class for agnostic
+            gt_class_cols = torch.arange(box_dim, device=device)
+        else:
+            fg_gt_classes = self.gt_classes[fg_inds]
+            # pred_proposal_deltas for class k are located in columns [b * k : b * k + b],
+            # where b is the dimension of box representation (4 or 5)
+            # Note that compared to Detectron1,
+            # we do not perform bounding box regression for background classes.
+            gt_class_cols = box_dim * fg_gt_classes[:, None] + torch.arange(box_dim, device=device)
+
+        pred_proposal = self.box2box_transform.apply_deltas(self.pred_proposal_deltas[fg_inds[:, None], gt_class_cols], self.proposals.tensor[fg_inds])
+        loss_box_reg = pairwise_ciou(pred_proposal, self.gt_boxes.tensor[fg_inds]) / sum(self.num_preds_per_image)
+        'vis, 需要把img从rcnn.py传过来'
+        # import cv2
+        # img_np = np.asarray(image[0].permute(1, 2, 0).cpu())
+        # img_np = np.ascontiguousarray(img_np)
+        # # result = self.gt_boxes.tensor[fg_inds]
+        # result = pred_proposal
+        # for i in range(len(result)):
+        #     cv2.rectangle(img_np, (int(result[i][0]), int(result[i][1])), (int(result[i][2]), int(result[i][3])),
+        #                   color=(0, 0, 228), thickness=1)
+        # cv2.imshow('1', img_np)
+        # cv2.waitKey(0)
+
+        return loss_box_reg
 
     def smooth_l1_loss(self):
         """
@@ -274,9 +326,11 @@ class FastRCNNOutputs(object):
         """
         return {
             # "loss_cls": self.softmax_cross_entropy_loss(),
-            "loss_cls": MultiCEFocalLoss(self.pred_class_logits, self.gt_classes, class_num=self.class_num + 1, alpha=self.roi_focal_alpha, gamma=self.roi_focal_gamma),
+            "loss_cls": self.softmax_cross_entropy_loss_label_smooth(),
+            # "loss_cls": MultiCEFocalLoss(self.pred_class_logits, self.gt_classes, class_num=self.class_num + 1, alpha=self.roi_focal_alpha, gamma=self.roi_focal_gamma),
             # "loss_cls": MultiCEFocalLoss(),
             "loss_box_reg": self.smooth_l1_loss(),
+            # "loss_box_reg": self.diou_loss(),
         }
 
     def predict_boxes(self):
@@ -462,8 +516,10 @@ class FastRCNNContrastOutputs(FastRCNNOutputs):
             return {'loss_contrast': self.supervised_contrastive_loss()}
         else:
             return {
-                'loss_cls': self.softmax_cross_entropy_loss(),
-                'loss_box_reg': self.box_reg_weight * self.smooth_l1_loss(),
+                'loss_cls': self.softmax_cross_entropy_loss_label_smooth(),
+                # 'loss_cls': self.softmax_cross_entropy_loss(),
+                # 'loss_box_reg': self.box_reg_weight * self.smooth_l1_loss(),
+                'loss_box_reg': self.box_reg_weight * self.diou_loss(),
                 'loss_contrast': self.contrast_loss_weight * self.supervised_contrastive_loss(),
             }
 
@@ -640,7 +696,7 @@ class FastRCNNOutputLayers(nn.Module):
     def forward(self, x):
         if x.dim() > 2:
             x = torch.flatten(x, start_dim=1)
-        scores = self.cls_score(x)
+        scores = self.cls_score(x)      # 1024*1024 -> 1024*6
         proposal_deltas = self.bbox_pred(x)
         return scores, proposal_deltas
 

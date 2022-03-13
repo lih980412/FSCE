@@ -1,6 +1,8 @@
 import glob
 import shutil
 
+
+jpg_dir = r"F:\Dataset\Defects\surface\连铸表检"
 jpg_dirs = [r'D:\UserD\Li\FSCE-1\datasets\my_dataset_22.01.23\22.01.23_train',
             r'D:\UserD\Li\FSCE-1\datasets\my_dataset_22.01.23\22.01.23_val']
 target_dir = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_22.01.23\image'

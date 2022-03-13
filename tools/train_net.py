@@ -60,7 +60,7 @@ class Trainer(DefaultTrainer):
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
         evaluator_list = []
         evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
-        if evaluator_type == "mydateset":
+        if evaluator_type == "mydataset":
             # mydataset
             evaluator_list.append(NewDatasetEvaluator(dataset_name, cfg, True, output_folder))
         if evaluator_type == "mydataset2":
@@ -83,22 +83,22 @@ class Trainer(DefaultTrainer):
         return DatasetEvaluators(evaluator_list)
 
     @classmethod
-    def build_train_loader(cls, cfg):
+    def build_train_loader(cls, cfg, aux=None):
         mapper = None
         # if cfg.INPUT.USE_ALBUMENTATIONS:
         #     mapper = AlbumentationMapper(cfg, is_train=True)
-        return build_detection_train_loader(cfg, mapper=mapper)
+        return build_detection_train_loader(cfg, aux, mapper=mapper)
 
 def setup(args):
     """
     Create configs and perform basic setups.
     """
-    cfg = get_cfg()
-    cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
-    cfg.freeze()
+    cfg = get_cfg()                         # 获取默认cfg
+    cfg.merge_from_file(args.config_file)   # 将.yml的参数覆盖到默认cfg中
+    cfg.merge_from_list(args.opts)          # 将命令行的参数覆盖到上述cfg中
+    cfg.freeze()                            # 使cfg不可变
     set_global_cfg(cfg)
-    default_setup(cfg, args)
+    default_setup(cfg, args)                # 输出cfg相关信息
     return cfg
 
 
@@ -122,6 +122,7 @@ def main(args):
     trainer = Trainer(cfg)
     trainer.resume_or_load(resume=args.resume)
     return trainer.train()
+
 
 
 if __name__ == "__main__":

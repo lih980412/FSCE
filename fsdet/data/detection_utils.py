@@ -84,6 +84,7 @@ def convert_image_to_rgb(image, format):
     else:
         if format == "L":
             image = image[:, :, 0]
+        # image = (image * 255.0).astype(np.uint8)
         image = image.astype(np.uint8)
         image = np.asarray(Image.fromarray(image, mode=format).convert("RGB"))
     return image
@@ -316,7 +317,7 @@ def check_metadata_consistency(key, dataset_names):
             raise ValueError("Datasets have different metadata '{}'!".format(key))
 
 
-def build_transform_gen(cfg, is_train):
+def build_transform_gen(cfg, is_train, aux=None):
     """
     Create a list of :class:`TransformGen` from config.
     Now it includes resizing and flipping.
@@ -345,6 +346,8 @@ def build_transform_gen(cfg, is_train):
     if is_train:
         # tfm_gens.append(T.ResizeShortestEdge(min_size, max_size, sample_style))
         # tfm_gens.append(T.RandomFlip())
+        if aux:
+            tfm_gens.append(T.Resize((700, 900)))
         if cfg.INPUT.USE_TRANSFORM_AUG:
             # Newer detectron2 has a RandomApply https://github.com/facebookresearch/detectron2/blob/master/detectron2/data/transforms/augmentation_impl.py
             # currently, every augmentation is about to happen definitely

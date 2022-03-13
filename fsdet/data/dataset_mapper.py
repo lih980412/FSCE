@@ -41,14 +41,17 @@ class DatasetMapper:
     3. Prepare data and annotations to Tensor and :class:`Instances`
     """
 
-    def __init__(self, cfg, is_train=True):
+    def __init__(self, cfg, is_train=True, aux=None):
         if cfg.INPUT.CROP.ENABLED and is_train:
             self.crop_gen = T.RandomCrop(cfg.INPUT.CROP.TYPE, cfg.INPUT.CROP.SIZE)
             logging.getLogger(__name__).info("CropGen used in training: " + str(self.crop_gen))
         else:
             self.crop_gen = None
 
-        self.tfm_gens = utils.build_transform_gen(cfg, is_train)
+        if not aux:
+            self.tfm_gens = utils.build_transform_gen(cfg, is_train)
+        else:
+            self.tfm_gens = utils.build_transform_gen(cfg, is_train, aux)
 
         # fmt: off
         self.img_format = cfg.INPUT.FORMAT

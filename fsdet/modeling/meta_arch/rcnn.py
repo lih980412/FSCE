@@ -18,6 +18,8 @@ from fsdet.utils.visualizer import Visualizer
 from fsdet.data.detection_utils import convert_image_to_rgb
 from fsdet.modeling.utils import concat_all_gathered
 
+from fsdet.utils.GEM import GeM
+
 __all__ = ["GeneralizedRCNN", "ProposalNetwork"]
 
 
@@ -111,8 +113,103 @@ class GeneralizedRCNN(nn.Module):
                 print('unfreeze fc1 in roi head')
         print('-------- Using Roi Head: {}---------\n'.format(cfg.MODEL.ROI_HEADS.NAME))
 
+        # self.GeM2 = GeM()
+        # self.GeM3 = GeM()
+        # self.GeM4 = GeM()
+        # self.GeM5 = GeM()
+        # self.GeM6 = GeM()
 
-    def forward(self, batched_inputs, lambda_=None):
+
+        # self.module1 = nn.Sequential(
+        #         nn.Conv2d(256, 64, kernel_size=(3, 3), stride=(2, 2), padding=3, bias=False),
+        #         nn.BatchNorm2d(64, momentum=1, affine=True),
+        #         nn.ReLU(),
+        #         GeM(),
+        #         # nn.Conv2d(64, 64, kernel_size=(3, 3), stride=(2, 2), padding=3, bias=False),
+        #         # GeM(),
+        #     )
+        # self.module1_score = nn.Sequential(
+        #     nn.Linear(64, 256),
+        #     nn.Linear(256, 256),
+        #     nn.ReLU(),
+        #     nn.Sigmoid(),
+        # )
+        #
+        # self.module2 = nn.Sequential(
+        #         nn.Conv2d(256, 64, kernel_size=(3, 3), stride=(2, 2), padding=3, bias=False),
+        #         nn.BatchNorm2d(64, momentum=1, affine=True),
+        #         nn.ReLU(),
+        #         GeM(),
+        #         # nn.Conv2d(64, 64, kernel_size=(3, 3), stride=(2, 2), padding=3, bias=False),
+        #         # GeM(),
+        #     )
+        # self.module2_score = nn.Sequential(
+        #     nn.Linear(64, 256),
+        #     nn.Linear(256, 256),
+        #     nn.ReLU(),
+        #     nn.Sigmoid(),
+        # )
+        #
+        # self.module3 = nn.Sequential(
+        #         nn.Conv2d(256, 64, kernel_size=(3, 3), stride=(2, 2), padding=3, bias=False),
+        #         nn.BatchNorm2d(64, momentum=1, affine=True),
+        #         nn.ReLU(),
+        #         GeM(),
+        #         # nn.Conv2d(64, 64, kernel_size=(3, 3), stride=(2, 2), padding=3, bias=False),
+        #         # GeM(),
+        #     )
+        # self.module3_score = nn.Sequential(
+        #     nn.Linear(64, 256),
+        #     nn.Linear(256, 256),
+        #     nn.ReLU(),
+        #     nn.Sigmoid(),
+        # )
+        #
+        # self.module4 = nn.Sequential(
+        #         nn.Conv2d(256, 64, kernel_size=(3, 3), stride=(2, 2), padding=3, bias=False),
+        #         nn.BatchNorm2d(64, momentum=1, affine=True),
+        #         nn.ReLU(),
+        #         GeM(),
+        #         # nn.Conv2d(64, 64, kernel_size=(3, 3), stride=(2, 2), padding=3, bias=False),
+        #         # GeM(),
+        #     )
+        # self.module4_score = nn.Sequential(
+        #     nn.Linear(64, 256),
+        #     nn.Linear(256, 256),
+        #     nn.ReLU(),
+        #     nn.Sigmoid(),
+        # )
+        #
+        # self.module5 = nn.Sequential(
+        #         nn.Conv2d(256, 64, kernel_size=(3, 3), stride=(2, 2), padding=3, bias=False),
+        #         nn.BatchNorm2d(64, momentum=1, affine=True),
+        #         nn.ReLU(),
+        #         GeM(),
+        #         # nn.Conv2d(64, 64, kernel_size=(3, 3), stride=(2, 2), padding=3, bias=False),
+        #         # GeM(),
+        #     )
+        # self.module5_score = nn.Sequential(
+        #     nn.Linear(64, 256),
+        #     nn.Linear(256, 256),
+        #     nn.ReLU(),
+        #     nn.Sigmoid(),
+        # )
+        #
+        # self.module1.cuda()
+        # self.module1_score.cuda()
+        # self.module2.cuda()
+        # self.module2_score.cuda()
+        # self.module3.cuda()
+        # self.module3_score.cuda()
+        # self.module4.cuda()
+        # self.module4_score.cuda()
+        # self.module5.cuda()
+        # self.module5_score.cuda()
+
+
+
+
+    def forward(self, batched_inputs, batched_inputs_aux=None, lambda_=None):
         """
         Args:
             batched_inputs: a list, batched outputs of :class:`DatasetMapper` .
@@ -138,9 +235,63 @@ class GeneralizedRCNN(nn.Module):
         if not self.training:
             return self.inference(batched_inputs)
 
+        if batched_inputs_aux is not None:
+            with torch.no_grad():
+                images_aux = self.preprocess_image(batched_inputs_aux)
+                # features_aux = self.backbone(images_aux.tensor)
         # backbone FPN
         images = self.preprocess_image(batched_inputs)
-        features = self.backbone(images.tensor)  # List of L, FPN features
+        features = self.backbone(images.tensor, images_aux.tensor)  # List of L, FPN features
+
+        # if batched_inputs_aux is not None:
+        #     with torch.no_grad():
+        #         images_aux = self.preprocess_image(batched_inputs_aux)
+        #         features_aux = self.backbone(images_aux.tensor)
+
+        'Relation score'
+        # score_pooling_p2 = self.module1(features_aux["p2"])
+        # score_pooling_p2 = score_pooling_p2.squeeze()
+        # score_p2 = self.module1_score(score_pooling_p2)
+        # score_p2 = score_p2.unsqueeze(dim=2).unsqueeze(dim=3)
+        # # features["p2"] = score_p2 * features["p2"]
+        # features["p2"] = score_p2*features_aux["p2"] + (1-score_p2)*features["p2"]
+        #
+        # score_pooling_p3 = self.module2(features_aux["p3"])
+        # score_pooling_p3 = score_pooling_p3.squeeze()
+        # score_p3 = self.module2_score(score_pooling_p3)
+        # score_p3 = score_p3.unsqueeze(dim=2).unsqueeze(dim=3)
+        # # features["p3"] = score_p3 * features["p3"]
+        # features["p3"] = score_p3*features_aux["p3"] + (1-score_p3)*features["p3"]
+        #
+        # score_pooling_p4 = self.module3(features_aux["p4"])
+        # score_pooling_p4 = score_pooling_p4.squeeze()
+        # score_p4 = self.module3_score(score_pooling_p4)
+        # score_p4 = score_p4.unsqueeze(dim=2).unsqueeze(dim=3)
+        # # features["p4"] = score_p4 * features["p4"]
+        # features["p4"] = score_p4*features_aux["p4"] + (1-score_p4)*features["p4"]
+        #
+        # score_pooling_p5 = self.module4(features_aux["p5"])
+        # score_pooling_p5 = score_pooling_p5.squeeze()
+        # score_p5 = self.module4_score(score_pooling_p5)
+        # score_p5 = score_p5.unsqueeze(dim=2).unsqueeze(dim=3)
+        # # features["p5"] = score_p5 * features["p5"]
+        # features["p5"] = score_p5*features_aux["p5"] + (1-score_p5)*features["p5"]
+        #
+        # score_pooling_p6 = self.module5(features_aux["p6"])
+        # score_pooling_p6 = score_pooling_p6.squeeze()
+        # score_p6 = self.module5_score(score_pooling_p6)
+        # score_p6 = score_p6.unsqueeze(dim=2).unsqueeze(dim=3)
+        # # features["p6"] = score_p6 * features["p6"]
+        # features["p6"] = score_p6*features_aux["p6"] + (1-score_p6)*features["p6"]
+
+
+        'GeM'
+        # features["p2"] = self.GeM2(features_aux["p2"]) * features["p2"]
+        # features["p3"] = self.GeM3(features_aux["p3"]) * features["p3"]
+        # features["p4"] = self.GeM4(features_aux["p4"]) * features["p4"]
+        # features["p5"] = self.GeM5(features_aux["p5"]) * features["p5"]
+        # features["p6"] = self.GeM6(features_aux["p6"]) * features["p6"]
+
 
         # RPN
         if "instances" in batched_inputs[0]:
@@ -186,7 +337,7 @@ class GeneralizedRCNN(nn.Module):
                 batched_inputs and proposals should have the same length.
         """
         storage = get_event_storage()
-        max_vis_prop = 20
+        max_vis_prop = 40
 
         for input, prop in zip(batched_inputs, proposals):
             img = input["image"]
@@ -258,9 +409,22 @@ class GeneralizedRCNN(nn.Module):
         Normalize, pad and batch the input images.
         """
         images = [x["image"].to(self.device) for x in batched_inputs]
-        images = [self.normalizer(x) for x in images]
+        # images = [self.normalizer(x) for x in images]
         images = ImageList.from_tensors(images, self.backbone.size_divisibility)
         return images
+
+
+@META_ARCH_REGISTRY.register()
+class Yolo(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+
+        self.input_format = cfg.INPUT.FORMAT
+        self.vis_period = cfg.INPUT.VIS_PERIOD
+        self.device = cfg.device(cfg.MODEL.DEVICE)
+
+        self.backbone = build_backbone(cfg)
+
 
 
 @META_ARCH_REGISTRY.register()

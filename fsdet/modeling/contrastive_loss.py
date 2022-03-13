@@ -31,6 +31,29 @@ class ContrastiveHead(nn.Module):
         return feat_normalized
 
 
+class MLP(nn.Module):
+    def __init__(self, dim_in):
+        super().__init__()
+
+        self.head = nn.Sequential(
+            nn.Linear(dim_in, 1024),
+            # nn.ReLU(inplace=True),
+            # nn.Linear(64, 1024),
+            # nn.ReLU(inplace=True),
+            # nn.LeakyReLU(inplace=True),
+            # nn.ELU(inplace=True),
+            nn.PReLU(num_parameters=1, init=0.25),
+
+        )
+        for layer in self.head:
+            if isinstance(layer, nn.Linear):
+                weight_init.c2_xavier_fill(layer)
+
+    def forward(self, x):
+        reweight_func_mlp = self.head(x)
+        return reweight_func_mlp
+
+
 class SupConLoss(nn.Module):
     """Supervised Contrastive LOSS as defined in https://arxiv.org/pdf/2004.11362.pdf."""
 
@@ -43,6 +66,7 @@ class SupConLoss(nn.Module):
         self.temperature = temperature
         self.iou_threshold = iou_threshold
         self.reweight_func = reweight_func
+        self.mlp = MLP(1024)
 
     def forward(self, features, labels, ious):
         """
@@ -78,20 +102,24 @@ class SupConLoss(nn.Module):
         per_label_log_prob = per_label_log_prob[keep]
         loss = -per_label_log_prob
 
-        coef = self._get_reweight_func(self.reweight_func)(ious)
+        # coef = self._get_reweight_func(self.reweight_func)(ious)
+        coef = self._get_reweight_func(self.reweight_func, self.mlp)(ious)
         coef = coef[keep]
-
-        loss = loss * coef
+        # loss = loss * coef
+        loss = loss * torch.abs_(coef)
         return loss.mean()
 
     @staticmethod
-    def _get_reweight_func(option):
+    # def _get_reweight_func(option):
+    def _get_reweight_func(option, mlp):
         def trivial(iou):
             return torch.ones_like(iou)
         def exp_decay(iou):
             return torch.exp(iou) - 1
         def linear(iou):
             return iou
+        def mlp_func(iou):
+            return mlp(iou)
 
         if option == 'none':
             return trivial
@@ -99,6 +127,10 @@ class SupConLoss(nn.Module):
             return linear
         elif option == 'exp':
             return exp_decay
+        elif option == 'mlp':
+            return mlp_func
+
+
 
 
 class SupConLossV2(nn.Module):

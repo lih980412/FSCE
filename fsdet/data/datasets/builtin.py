@@ -50,7 +50,7 @@ _PREDEFINED_SPLITS_COCO["coco"] = {
 }
 
 
-def register_all_coco(root="datasets"):
+def register_all_coco(root=r"D:\UserD\Li\FSCE-1\datasets"):
     for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_COCO.items():
         for key, (image_root, json_file) in splits_per_dataset.items():
             # Assume pre-defined datasets live in `./datasets`.
@@ -61,30 +61,30 @@ def register_all_coco(root="datasets"):
                 os.path.join(root, image_root),
             )
 
-    # register meta datasets
-    METASPLITS = [
-        ("coco_trainval_all", "coco/trainval2014", "cocosplit/datasplit/trainvalno5k.json"),
-        ("coco_trainval_base", "coco/trainval2014", "cocosplit/datasplit/trainvalno5k.json"),
-        ("coco_test_all", "coco/val2014", "cocosplit/datasplit/5k.json"),
-        ("coco_test_base", "coco/val2014", "cocosplit/datasplit/5k.json"),
-        ("coco_test_novel", "coco/val2014", "cocosplit/datasplit/5k.json"),
-    ]
+    # # register meta datasets
+    # METASPLITS = [
+    #     ("coco_trainval_all", "coco/trainval2014", "cocosplit/datasplit/trainvalno5k.json"),
+    #     ("coco_trainval_base", "coco/trainval2014", "cocosplit/datasplit/trainvalno5k.json"),
+    #     ("coco_test_all", "coco/val2014", "cocosplit/datasplit/5k.json"),
+    #     ("coco_test_base", "coco/val2014", "cocosplit/datasplit/5k.json"),
+    #     ("coco_test_novel", "coco/val2014", "cocosplit/datasplit/5k.json"),
+    # ]
 
-    # register small meta datasets for fine-tuning stage
-    for prefix in ["all", "novel"]:
-        for shot in [1, 2, 3, 5, 10, 30]:
-            for seed in range(10):
-                seed = "" if seed == 0 else "_seed{}".format(seed)
-                name = "coco_trainval_{}_{}shot{}".format(prefix, shot, seed)
-                METASPLITS.append((name, "coco/trainval2014", ""))
-
-    for name, imgdir, annofile in METASPLITS:
-        register_meta_coco(
-            name,
-            _get_builtin_metadata("coco_fewshot"),
-            os.path.join(root, imgdir),
-            os.path.join(root, annofile),
-        )
+    # # register small meta datasets for fine-tuning stage
+    # for prefix in ["all", "novel"]:
+    #     for shot in [1, 2, 3, 5, 10, 30]:
+    #         for seed in range(10):
+    #             seed = "" if seed == 0 else "_seed{}".format(seed)
+    #             name = "coco_trainval_{}_{}shot{}".format(prefix, shot, seed)
+    #             METASPLITS.append((name, "coco/trainval2014", ""))
+    #
+    # for name, imgdir, annofile in METASPLITS:
+    #     register_meta_coco(
+    #         name,
+    #         _get_builtin_metadata("coco_fewshot"),
+    #         os.path.join(root, imgdir),
+    #         os.path.join(root, annofile),
+    #     )
 
 _PREDEFINED_SPLITS_CUSTOM2 = {}
 _PREDEFINED_SPLITS_CUSTOM2["custom2"] = {
@@ -130,35 +130,35 @@ def register_all_custom1(root=r"D:\UserD\Li\FSCE-1\datasets"):
                 os.path.join(root, image_root),
             )
 
-    # register meta datasets
-    METASPLITS = [
-        # ("coco_trainval_all", "coco/trainval2014", "cocosplit/datasplit/trainvalno5k.json"),
-        # ("coco_trainval_base", "coco/trainval2014", "cocosplit/datasplit/trainvalno5k.json"),
-        # ("coco_test_all", "coco/val2014", "cocosplit/datasplit/5k.json"),
-        # ("coco_test_base", "coco/val2014", "cocosplit/datasplit/5k.json"),
-        # ("coco_test_novel", "coco/val2014", "cocosplit/datasplit/5k.json"),
-        ("custom1_train_novel", "my_dataset_split/image", "my_dataset_split/annotations/instances_train.json"),
-        ("custom1_val_novel", "my_dataset_split/image", "my_dataset_split/annotations/instances_val.json"),
-        ("custom1_train_novel_before", "my_dataset_split_before/image", "my_dataset_split_before/annotations/instances_train.json"),
-        ("custom1_val_novel_before", "my_dataset_split_before/image", "my_dataset_split_before/annotations/instances_val.json"),
-
-    ]
-
-    # register small meta datasets for fine-tuning stage
-    for prefix in ["all", "novel"]:
-        for shot in [10, 20, 50]:
-            for seed in range(10):
-                seed = "" if seed == 0 else "_seed{}".format(seed)
-                name = "custom1_trainval_{}_{}shot{}".format(prefix, shot, seed)
-                METASPLITS.append((name, "my_dataset_split/image", ""))
-
-    for name, imgdir, annofile in METASPLITS:
-        register_meta_mydateset(
-            name,
-            _get_builtin_metadata("custom1_fewshot"),
-            os.path.join(root, imgdir),
-            os.path.join(root, annofile),
-        )
+    # # register meta datasets
+    # METASPLITS = [
+    #     # ("coco_trainval_all", "coco/trainval2014", "cocosplit/datasplit/trainvalno5k.json"),
+    #     # ("coco_trainval_base", "coco/trainval2014", "cocosplit/datasplit/trainvalno5k.json"),
+    #     # ("coco_test_all", "coco/val2014", "cocosplit/datasplit/5k.json"),
+    #     # ("coco_test_base", "coco/val2014", "cocosplit/datasplit/5k.json"),
+    #     # ("coco_test_novel", "coco/val2014", "cocosplit/datasplit/5k.json"),
+    #     ("custom1_train_novel", "my_dataset_split/image", "my_dataset_split/annotations/instances_train.json"),
+    #     ("custom1_val_novel", "my_dataset_split/image", "my_dataset_split/annotations/instances_val.json"),
+    #     ("custom1_train_novel_before", "my_dataset_split_before/image", "my_dataset_split_before/annotations/instances_train.json"),
+    #     ("custom1_val_novel_before", "my_dataset_split_before/image", "my_dataset_split_before/annotations/instances_val.json"),
+    #
+    # ]
+    #
+    # # register small meta datasets for fine-tuning stage
+    # for prefix in ["all", "novel"]:
+    #     for shot in [10, 20, 50]:
+    #         for seed in range(10):
+    #             seed = "" if seed == 0 else "_seed{}".format(seed)
+    #             name = "custom1_trainval_{}_{}shot{}".format(prefix, shot, seed)
+    #             METASPLITS.append((name, "my_dataset_split/image", ""))
+    #
+    # for name, imgdir, annofile in METASPLITS:
+    #     register_meta_mydateset(
+    #         name,
+    #         _get_builtin_metadata("custom1_fewshot"),
+    #         os.path.join(root, imgdir),
+    #         os.path.join(root, annofile),
+    #     )
 
 
 
@@ -309,8 +309,8 @@ def register_all_pascal_voc(root="datasets"):
 
 
 register_all_coco()
-register_all_lvis()
-register_all_pascal_voc()
+# register_all_lvis()
+# register_all_pascal_voc()
 
 register_all_custom1()
 

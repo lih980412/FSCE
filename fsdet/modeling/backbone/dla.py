@@ -307,6 +307,8 @@ class DLA(Backbone):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
+        self.fuse_layer_name = ["level0", "level1"]
+
     def _make_level(self, block, inplanes, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or inplanes != planes:
@@ -336,12 +338,22 @@ class DLA(Backbone):
             inplanes = planes
         return nn.Sequential(*modules)
 
-    def forward(self, x):
+    def forward(self, x, aux_x=None):
         y = {}
         x = self.base_layer(x)
+        if aux_x is not None:
+            with torch.no_grad():
+                aux_x = self.base_layer(aux_x)
+
         for i in range(self.scale_idx + 1):
             name = 'level{}'.format(i)
             x = getattr(self, name)(x)
+            if aux_x is not None:
+                with torch.no_grad():
+                    if name in self.fuse_layer_name:
+
+                        aux_x = getattr(self, name)(aux_x)
+                        x = x * 0.9 + aux_x * 0.1
             if name in self._out_features:
                 y[name] = x
         return y
@@ -409,8 +421,8 @@ def dla60(**kwargs):  # DLA-60
                 [16, 32, 128, 256, 512, 1024],
                 block=Bottleneck, **kwargs)
     # state_dict = load_state_dict_from_url(model_urls['dla60'])
-    state_dict = torch.load(r"D:\UserD\Li\FSCE-1\checkpoints\mydataset_dla60\dla60.pth")
-    model.load_state_dict(state_dict)
+    # state_dict = torch.load(r"D:\UserD\Li\FSCE-1\checkpoints\mydataset_dla60\dla60.pth")
+    # model.load_state_dict(state_dict)
     return model
 
 

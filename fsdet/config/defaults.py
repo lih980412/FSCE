@@ -83,6 +83,7 @@ _C.INPUT.VIS_PERIOD = 1000
 _C.DATASETS = CN()
 # List of the dataset names for training. Must be registered in DatasetCatalog
 _C.DATASETS.TRAIN = ()
+_C.DATASETS.TRAIN_AUX = ()
 # List of the dataset names for testing. Must be registered in DatasetCatalog
 _C.DATASETS.TEST = ()
 
@@ -222,6 +223,7 @@ _C.MODEL.RPN.NMS_THRESH = 0.7
 # focal loss
 _C.MODEL.RPN.FOCAL_ALPHA = 0.25
 _C.MODEL.RPN.FOCAL_GAMMA = 2.
+
 # ---------------------------------------------------------------------------- #
 # ROI HEADS options
 # ---------------------------------------------------------------------------- #

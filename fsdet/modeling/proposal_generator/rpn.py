@@ -162,13 +162,9 @@ class RPN(nn.Module):
             gt_boxes,
             self.smooth_l1_beta,
             self.rpn_focal_alpha,
-            self.rpn_focal_gamma
+            self.rpn_focal_gamma,
+            self.anchor_generator.strides
         )
-        '显示 RPN 中正负 anchor 思路'
-        # image_anchor_per_featuremap_deltas -> image_anchor_per_featuremap -> * self.anchor_generator.strides -> upsample back to orginal image
-        # outputs.visPosNegAnchor(self.anchor_generator.strides)
-        #
-
 
         if self.training and not self.cl_head_only:
             losses = {k: v * self.loss_weight for k, v in outputs.losses().items()}
@@ -199,6 +195,17 @@ class RPN(nn.Module):
             # 所以再以后用到的其实并不是按照 objectness 倒序排列的。
             inds = [p.objectness_logits.sort(descending=True)[1] for p in proposals]
             proposals = [p[ind] for p, ind in zip(proposals, inds)]
-
-
+            '可视化送入 RoI Head 的 proposal'
+            # import cv2
+            # import numpy as np
+            # img_np = np.asarray(images.tensor[0].permute(1, 2, 0).cpu())
+            # img_np = np.ascontiguousarray(img_np)
+            # print(proposals[0]._fields["proposal_boxes"].tensor.shape[0])
+            # for i in range(proposals[0]._fields["proposal_boxes"].tensor.shape[0]):
+            #     cv2.rectangle(img_np, (int(proposals[0]._fields["proposal_boxes"].tensor[i][0]),
+            #                            int(proposals[0]._fields["proposal_boxes"].tensor[i][1])), (
+            #                   int(proposals[0]._fields["proposal_boxes"].tensor[i][2]),
+            #                   int(proposals[0]._fields["proposal_boxes"].tensor[i][3])), color=(0, 228, 0), thickness=1)
+            # cv2.imshow("1", img_np)
+            # cv2.waitKey(0)
         return proposals, losses

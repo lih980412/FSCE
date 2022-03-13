@@ -3,7 +3,8 @@
 
 import logging
 import random
-
+import torch.nn as nn
+import numba
 import numpy as np
 import time
 import weakref
@@ -97,6 +98,7 @@ class TrainerBase:
 
     def __init__(self):
         self._hooks = []
+        self.logger = logging.getLogger(__name__)
 
     def register_hooks(self, hooks):
         """
@@ -121,8 +123,8 @@ class TrainerBase:
         Args:
             start_iter, max_iter (int): See docs above
         """
-        logger = logging.getLogger(__name__)
-        logger.info("Starting training from iteration {}".format(start_iter))
+
+        self.logger.info("Starting training from iteration {}".format(start_iter))
 
         self.iter = self.start_iter = start_iter
         self.max_iter = max_iter
@@ -142,28 +144,11 @@ class TrainerBase:
             finally:
                 self.after_train()
 
-    # def train_mixup(self, start_iter: int, max_iter: int):
-    #     """
-    #             Args:
-    #                 start_iter, max_iter (int): See docs above
-    #             """
-    #     logger = logging.getLogger(__name__)
-    #     logger.info("Starting training from iteration {}".format(start_iter))
-    #
-    #     self.iter = self.start_iter = start_iter
-    #     self.max_iter = max_iter
-    #
-    #     with EventStorage(start_iter) as self.storage:
-    #         try:
-    #             self.before_train()
-    #             for self.iter in range(start_iter, max_iter):
-    #                 self.before_step()
-    #                 self.run_step_mixup()
-    #                 self.after_step()
-    #         finally:
-    #             self.after_train()
-
     def before_train(self):
+        if self.cfg.INPUT.USE_MIXUP:
+            self.logger.info("Use mixup")
+        elif self.cfg.INPUT.USE_MOSAIC:
+            self.logger.info("Use mosaic")
         for h in self._hooks:
             h.before_train()
 
@@ -206,7 +191,7 @@ class SimpleTrainer(TrainerBase):
     or write your own training loop.
     """
 
-    def __init__(self, model, data_loader, optimizer):
+    def __init__(self, model, data_loader, optimizer, data_loader_aux=None):
         """
         Args:
             model: a torch Module. Takes a data from data_loader and returns a
@@ -227,9 +212,55 @@ class SimpleTrainer(TrainerBase):
         self.model = model
         self.data_loader = data_loader
         self._data_loader_iter = iter(data_loader)
+        if data_loader_aux is not None:
+            self._data_loader_aux_iter = iter(data_loader_aux)
         self.optimizer = optimizer
 
+        self.task_num = 2
+        self.log_vars = nn.Parameter(torch.zeros((self.task_num)))
+
+
     def run_step(self):
+        """
+        Implement the standard training logic described above.
+        """
+        assert self.model.training, "[SimpleTrainer] model was changed to eval mode!"
+        start = time.perf_counter()
+        """
+        If your want to do something with the data, you can wrap the dataloader.
+        """
+        data = next(self._data_loader_iter)
+        if self._data_loader_aux_iter is not None:
+            data_aux = next(self._data_loader_aux_iter)
+        data_time = time.perf_counter() - start
+
+        """
+        If your want to do something with the losses, you can wrap the model.
+        """
+        loss_dict = self.model(data, data_aux)
+
+        losses = sum(loss for loss in loss_dict.values())
+
+        self._detect_anomaly(losses, loss_dict)
+
+        metrics_dict = loss_dict
+        metrics_dict["data_time"] = data_time
+        self._write_metrics(metrics_dict)
+
+        """
+        If you need accumulate gradients or something similar, you can
+        wrap the optimizer with your custom `zero_grad()` method.
+        """
+        self.optimizer.zero_grad()
+        losses.backward()
+
+        """
+        If you need gradient clipping/scaling or other processing, you can
+        wrap the optimizer with your custom `step()` method.
+        """
+        self.optimizer.step()
+
+    def run_step_loss_wrapper(self):
         """
         Implement the standard training logic described above.
         """
@@ -245,7 +276,12 @@ class SimpleTrainer(TrainerBase):
         If your want to do something with the losses, you can wrap the model.
         """
         loss_dict = self.model(data)
+        precision1 = torch.exp(-self.log_vars[0])
+        loss_dict["loss_cls"] = torch.sum(precision1 * loss_dict["loss_cls"] ** 2. + self.log_vars[0], -1)
+        precision2 = torch.exp(-self.log_vars[1])
+        loss_dict["loss_box_reg"] = torch.sum(precision2 * loss_dict["loss_box_reg"] ** 2. + self.log_vars[1], -1)
         losses = sum(loss for loss in loss_dict.values())
+
         self._detect_anomaly(losses, loss_dict)
 
         metrics_dict = loss_dict
@@ -275,7 +311,6 @@ class SimpleTrainer(TrainerBase):
         alpha = 1
         beta_distribution = torch.distributions.beta.Beta(alpha, alpha)
         lambda_ = beta_distribution.sample([]).item()
-        # print("use Mixup")
         data = next(self._data_loader_iter)
         assert len(data) % 2 == 0, "Batch size must be EVEN when using Mixup."
         data_reverse = data[::-1]
@@ -291,7 +326,6 @@ class SimpleTrainer(TrainerBase):
             data[i]["image"] = lambda_ * data[i]["image"] + (1 - lambda_) * data_reverse[i]["image"]
 
         data_time = time.perf_counter() - start
-
         loss_dict = self.model(data, lambda_)
         losses = sum(loss for loss in loss_dict.values())
 
@@ -306,6 +340,7 @@ class SimpleTrainer(TrainerBase):
 
         self.optimizer.step()
 
+
     def run_step_mosaic(self):
         # print("use mosaic")
 
@@ -314,22 +349,31 @@ class SimpleTrainer(TrainerBase):
 
         data = next(self._data_loader_iter)
         # comm.vis_mosaic(data ,id)
-        data_time = time.perf_counter() - start
-        TensorboradID = 0
         data_new = []
-        for i in range(self.cfg.INPUT.MOSAIC_BATCH):
+        '1 太慢'
+        # TensorboradID = 0
+        # for i in range(self.cfg.INPUT.MOSAIC_BATCH):
+        #
+        #     random.shuffle(data)
+        #
+        #     data_temp = comm.Mosaic(data[:4])
+        #
+        #
+        #     # data_temp_ann = comm.vis_mosaic(data_temp)
+        #     # self.storage.put_image("Mosaic_" + str(self.iter) + "_" + str(TensorboradID), data_temp_ann)
+        #     # self._hooks[4]._writers[2]._writer.add_image("Mosaic_" + str(self.iter) + "_" + str(TensorboradID),
+        #     #                                              data_temp_ann, self.iter)
+        #     # del data_temp_ann
+        #     TensorboradID += 1
+        #     data_new.append(data_temp)
+        # # comm.vis_mosaic(data_new ,id)
 
-            random.shuffle(data)
-            data_temp = comm.Mosaic(data[:4])
-            data_temp_ann = comm.vis_mosaic(data_temp)
-            # self.storage.put_image("Mosaic_" + str(self.iter) + "_" + str(TensorboradID), data_temp_ann)
-            self._hooks[4]._writers[2]._writer.add_image("Mosaic_" + str(self.iter) + "_" + str(TensorboradID),
-                                                         data_temp_ann, self.iter)
-            del data_temp_ann
-            TensorboradID += 1
-            data_new.append(data_temp)
-        # comm.vis_mosaic(data_new ,id)
+        '2'
+        data_temp = comm.Mosaic(data[:4])
+        data_new.append(data_temp)
+
         del data
+        data_time = time.perf_counter() - start
         loss_dict = self.model(data_new)
         '显存不够'
         # if self.iter>5000:
@@ -358,6 +402,7 @@ class SimpleTrainer(TrainerBase):
 
     def _detect_anomaly(self, losses, loss_dict):
         if not torch.isfinite(losses).all():
+
             raise FloatingPointError(
                 "Loss became infinite or NaN at iteration={}!\nloss_dict = {}".format(
                     self.iter, loss_dict

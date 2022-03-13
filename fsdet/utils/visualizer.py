@@ -159,7 +159,8 @@ class Visualizer:
                 to be in the range [0, 255].
             metadata (MetadataCatalog): image metadata.
         """
-        self.img = np.asarray(img_rgb).clip(0, 255).astype(np.uint8)
+        self.img = np.asarray((img_rgb)*255.0).clip(0, 255).astype(np.uint8)
+        # self.img = np.asarray(img_rgb).clip(0, 255).astype(np.uint8)
         self.metadata = metadata
         self.output = VisImage(self.img, scale=scale)
         self.cpu_device = torch.device("cpu")

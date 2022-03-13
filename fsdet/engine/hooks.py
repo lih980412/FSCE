@@ -188,6 +188,8 @@ class PeriodicCheckpointer(_PeriodicCheckpointer, HookBase):
 
     def after_step(self):
         # No way to use **kwargs
+
+
         self.step(self.trainer.iter)
 
 

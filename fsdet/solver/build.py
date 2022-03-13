@@ -42,6 +42,8 @@ def build_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Optimiz
 
     if cfg.SOLVER.NAME == 'MaskedSGD':
         optimizer = MaskedSGD(params, lr, momentum=cfg.SOLVER.MOMENTUM)
+    elif cfg.SOLVER.NAME == 'Adam':
+        optimizer = torch.optim.Adam(params, lr)
     else:
         optimizer = torch.optim.SGD(params, lr, momentum=cfg.SOLVER.MOMENTUM)
     return optimizer

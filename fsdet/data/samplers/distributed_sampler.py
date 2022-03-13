@@ -104,7 +104,8 @@ class RepeatFactorTrainingSampler(Sampler):
         # 1. For each category c, compute the fraction of images that contain it: f(c)
         category_freq = defaultdict(int)
         for dataset_dict in dataset_dicts:  # For each image (without repeats)
-            cat_ids = {ann["category_id"] for ann in dataset_dict["annotations"]}
+            # cat_ids = {ann["category_id"] for ann in dataset_dict["annotations"]}
+            cat_ids = [ann["category_id"] for ann in dataset_dict["annotations"]]
             for cat_id in cat_ids:
                 category_freq[cat_id] += 1
         num_images = len(dataset_dicts)

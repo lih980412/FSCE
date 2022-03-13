@@ -1,5 +1,5 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-from .boxes import Boxes, BoxMode, pairwise_iou
+from .boxes import Boxes, BoxMode, pairwise_iou, pairwise_giou, pairwise_diou, pairwise_ciou
 from .image_list import ImageList
 from .instances import Instances
 from .rotated_boxes import RotatedBoxes

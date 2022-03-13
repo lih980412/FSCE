@@ -4,6 +4,8 @@
 import logging
 from fvcore.common.config import CfgNode as _CfgNode
 
+import yaml
+from iopath.common.file_io import g_pathmgr
 
 class CfgNode(_CfgNode):
     """
@@ -17,10 +19,20 @@ class CfgNode(_CfgNode):
       When attempting to merge an old config, it will convert the old config automatically.
 
     """
+    def load_yaml_with_base_utf8(
+        cls, filename: str, allow_unsafe: bool = False
+    ):
+        with g_pathmgr.open(filename, "rb") as f:
+
+            cfg = yaml.safe_load(f)
+            return cfg
+
+
 
     # Note that the default value of allow_unsafe is changed to True
     def merge_from_file(self, cfg_filename: str, allow_unsafe: bool = True) -> None:
         loaded_cfg = _CfgNode.load_yaml_with_base(cfg_filename, allow_unsafe=allow_unsafe)
+        # loaded_cfg = self.load_yaml_with_base_utf8(cfg_filename, allow_unsafe=allow_unsafe)
         loaded_cfg = type(self)(loaded_cfg)
 
         # defaults.py needs to import CfgNode

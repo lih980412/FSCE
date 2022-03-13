@@ -3,7 +3,7 @@ import copy
 import numpy as np
 from enum import Enum, unique
 from typing import Iterator, List, Tuple, Union
-import torch
+import torch, math
 
 from fsdet.layers import cat
 
@@ -97,7 +97,7 @@ class Boxes:
         self.tensor = tensor
 
     def set_tensor(self, tensors):
-        self.tensor = torch.as_tensor(tensors, dtype=torch.float32, device="cuda")
+        self.tensor = torch.as_tensor(tensors, dtype=torch.float32, device="cpu")
 
     def clone(self) -> "Boxes":
         """
@@ -191,10 +191,10 @@ class Boxes:
         """
         height, width = box_size
         inds_inside = (
-            (self.tensor[..., 0] >= -boundary_threshold)
-            & (self.tensor[..., 1] >= -boundary_threshold)
-            & (self.tensor[..., 2] < width + boundary_threshold)
-            & (self.tensor[..., 3] < height + boundary_threshold)
+                (self.tensor[..., 0] >= -boundary_threshold)
+                & (self.tensor[..., 1] >= -boundary_threshold)
+                & (self.tensor[..., 2] < width + boundary_threshold)
+                & (self.tensor[..., 3] < height + boundary_threshold)
         )
         return inds_inside
 
@@ -301,3 +301,160 @@ def matched_boxlist_iou(boxes1: Boxes, boxes2: Boxes) -> torch.Tensor:
     inter = wh[:, 0] * wh[:, 1]  # [N]
     iou = inter / (area1 + area2 - inter)  # [N]
     return iou
+
+
+def pairwise_giou(boxes1: Boxes, boxes2: Boxes) -> torch.Tensor:
+    """
+    Given two lists of boxes of size N and M,
+    compute the IoU (intersection over union)
+    between __all__ N x M pairs of boxes.
+    The box order must be (xmin, ymin, xmax, ymax).
+
+    Args:
+        boxes1,boxes2 (Boxes): two `Boxes`. Contains N & M boxes, respectively.
+
+    Returns:
+        Tensor: IoU, sized [N,M].
+    """
+    # cal the box's area of boxes1 and boxess
+    boxes1 = Boxes(boxes1)
+    boxes2 = Boxes(boxes2)
+    area1 = boxes1.area()
+    area2 = boxes2.area()
+
+    boxes1, boxes2 = boxes1.tensor, boxes2.tensor
+
+    # cal Intersection
+    lt = torch.max(boxes1[:, None, :2], boxes2[:, :2])  # [N,M,2]
+    rb = torch.min(boxes1[:, None, 2:], boxes2[:, 2:])  # [N,M,2]
+
+    wh = (rb - lt).clamp(min=0)  # [N,M,2]
+    inter = wh[:, :, 0] * wh[:, :, 1]  # [N,M]
+    union_area = area1[:, None] + area2 - inter
+    # handle empty boxes
+    # inter > 0的话，更改 inter 为 inter / (area1[:, None] + area2 - inter)，否则更改 inter 为 torch.zeros(1, dtype=inter.dtype, device=inter.device)
+    iou = torch.where(
+        inter > 0,
+        inter / union_area,
+        torch.zeros(1, dtype=inter.dtype, device=inter.device),
+    )
+
+    # cal outer boxes
+    left_up = torch.min(boxes1[:, None, :2], boxes2[:, :2])
+    right_down = torch.max(boxes1[:, None, 2:], boxes2[:, 2:])
+    enclose = (right_down - left_up).clamp(min=0)
+    enclose_area = enclose[:, :, 0] * enclose[:, :, 1]
+
+    giou = iou - 1.0 * (enclose_area - union_area) / enclose_area
+
+    gious_flatten = (1 - giou).flatten()
+    localization_loss = gious_flatten.mean() * giou.shape[0]
+    return localization_loss
+
+
+def pairwise_diou(boxes1, boxes2):
+    '''
+    cal DIOU of two boxes or batch boxes
+    :param boxes1:[xmin,ymin,xmax,ymax] or
+                [[xmin,ymin,xmax,ymax],[xmin,ymin,xmax,ymax],...]
+    :param boxes2:[xmin,ymin,xmax,ymax]
+    :return:
+    '''
+
+    # cal the box's area of boxes1 and boxess
+    # boxes1 = Boxes(boxes1)
+    # boxes2 = Boxes(boxes2)
+    # area1 = boxes1.area()
+    # area2 = boxes2.area()
+    # boxes1, boxes2 = boxes1.tensor, boxes2.tensor
+    area1 = (boxes1[:, 2] - boxes1[:, 0]) * (boxes1[:, 3] - boxes1[:, 1])
+    area2 = (boxes2[:, 2] - boxes2[:, 0]) * (boxes2[:, 3] - boxes2[:, 1])
+
+    # cal Intersection
+    lt = torch.max(boxes1[:, None, :2], boxes2[:, :2])  # [N,M,2]
+    rb = torch.min(boxes1[:, None, 2:], boxes2[:, 2:])  # [N,M,2]
+
+    wh = (rb - lt).clamp(min=0)  # [N,M,2]
+    inter = wh[:, :, 0] * wh[:, :, 1]  # [N,M]
+    union_area = area1[:, None] + area2 - inter
+    iou = torch.where(
+        inter > 0,
+        inter / union_area,
+        torch.zeros(1, dtype=inter.dtype, device=inter.device),
+    )
+
+    # cal outer boxes
+    left_up = torch.min(boxes1[:, None, :2], boxes2[:, :2])
+    right_down = torch.max(boxes1[:, None, 2:], boxes2[:, 2:])
+    outer = (right_down - left_up).clamp(min=0)
+    outer_diagonal_line = torch.square(outer[..., 0]) + torch.square(outer[..., 1])
+
+    # cal center distance
+    boxes1_center = (boxes1[..., :2] + boxes1[..., 2:]) * 0.5
+    boxes2_center = (boxes2[..., :2] + boxes2[..., 2:]) * 0.5
+    center_dis = torch.square(boxes1_center[..., 0] - boxes2_center[..., 0]) + \
+                 torch.square(boxes1_center[..., 1] - boxes2_center[..., 1])
+
+    # cal diou
+    dious = iou - center_dis / outer_diagonal_line
+
+    dious_flatten = (1 - dious).flatten()
+    localization_loss = dious_flatten.mean() * dious.shape[0]
+
+    return localization_loss
+
+
+def pairwise_ciou(boxes1, boxes2):
+    '''
+    cal CIOU of two boxes or batch boxes
+    :param boxes1:[xmin,ymin,xmax,ymax] or
+                [[xmin,ymin,xmax,ymax],[xmin,ymin,xmax,ymax],...]
+    :param boxes2:[xmin,ymin,xmax,ymax]
+    :return:
+    '''
+
+    # cal the box's area of boxes1 and boxess
+    area1 = (boxes1[:, 2] - boxes1[:, 0]) * (boxes1[:, 3] - boxes1[:, 1])
+    area2 = (boxes2[:, 2] - boxes2[:, 0]) * (boxes2[:, 3] - boxes2[:, 1])
+
+    # cal Intersection
+    lt = torch.max(boxes1[:, None, :2], boxes2[:, :2])  # [N,M,2]
+    rb = torch.min(boxes1[:, None, 2:], boxes2[:, 2:])  # [N,M,2]
+
+    wh = (rb - lt).clamp(min=0)  # [N,M,2]
+    inter = wh[:, :, 0] * wh[:, :, 1]  # [N,M]
+    union_area = area1[:, None] + area2 - inter
+    iou = torch.where(
+        inter > 0,
+        inter / union_area,
+        torch.zeros(1, dtype=inter.dtype, device=inter.device),
+    )
+
+    # cal outer boxes
+    left_up = torch.min(boxes1[:, None, :2], boxes2[:, :2])
+    right_down = torch.max(boxes1[:, None, 2:], boxes2[:, 2:])
+    outer = (right_down - left_up).clamp(min=0)
+    outer_diagonal_line = torch.square(outer[..., 0]) + torch.square(outer[..., 1])
+
+    # cal center distance
+    boxes1_center = (boxes1[..., :2] + boxes1[..., 2:]) * 0.5
+    boxes2_center = (boxes2[..., :2] + boxes2[..., 2:]) * 0.5
+    center_dis = torch.square(boxes1_center[..., 0] - boxes2_center[..., 0]) + \
+                 torch.square(boxes1_center[..., 1] - boxes2_center[..., 1])
+
+    # cal penalty term
+    # cal width,height
+    boxes1_wh = torch.maximum(boxes1[..., 2:] - boxes1[..., :2], torch.tensor(0.0))
+    boxes2_wh = torch.maximum(boxes2[..., 2:] - boxes2[..., :2], torch.tensor(0.0))
+    v = (4.0 / torch.square(torch.tensor(math.pi))) * torch.square(
+        (torch.arctan(boxes1_wh[..., 0] / boxes1_wh[..., 1]) -
+         torch.arctan(boxes2_wh[..., 0] / boxes2_wh[..., 1]))
+    )
+    alpha = v / (1 - iou + v)
+
+    # cal ciou
+    cious = iou - (center_dis / outer_diagonal_line + alpha * v)
+    cious_flatten = (1 - cious).flatten()
+    localization_loss = cious_flatten.mean() * cious.shape[0]
+
+    return localization_loss

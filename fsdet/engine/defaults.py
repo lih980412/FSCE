@@ -264,8 +264,10 @@ class DefaultTrainer(SimpleTrainer):
         """
         # Assume these objects must be constructed in this order.
         model = self.build_model(cfg)
+        # model.backbone.bottom_up.avgpool =
         optimizer = self.build_optimizer(cfg, model)
         data_loader = self.build_train_loader(cfg)
+        data_loader_aux = self.build_train_loader(cfg, cfg.DATASETS.TRAIN_AUX)
 
         # For training, wrap with DDP. But don't need this for inference.
         if comm.get_world_size() > 1:
@@ -274,7 +276,7 @@ class DefaultTrainer(SimpleTrainer):
                 broadcast_buffers=False,
                 find_unused_parameters=True
             )
-        super().__init__(model, data_loader, optimizer)
+        super().__init__(model, data_loader, optimizer, data_loader_aux)
 
         self.scheduler = self.build_lr_scheduler(cfg, optimizer)
         # Assume no other objects need to be checkpointed.
@@ -309,6 +311,7 @@ class DefaultTrainer(SimpleTrainer):
             )
             + 1
         )
+
 
     def build_hooks(self):
         """
@@ -399,13 +402,6 @@ class DefaultTrainer(SimpleTrainer):
             verify_results(self.cfg, self._last_eval_results)
             return self._last_eval_results
 
-
-    # def train_mixup(self):
-    #     super().train_mixup(self.start_iter, self.max_iter)
-    #     if hasattr(self, "_last_eval_results") and comm.is_main_process():
-    #         verify_results(self.cfg, self._last_eval_results)
-    #         return self._last_eval_results
-
     @classmethod
     def build_model(cls, cfg):
         """
@@ -441,7 +437,7 @@ class DefaultTrainer(SimpleTrainer):
         return build_lr_scheduler(cfg, optimizer)
 
     @classmethod
-    def build_train_loader(cls, cfg):
+    def build_train_loader(cls, cfg, aux=None):
         """
         Returns:
             iterable
@@ -449,7 +445,7 @@ class DefaultTrainer(SimpleTrainer):
         It now calls :func:`fsdet.data.build_detection_train_loader`.
         Overwrite it if you'd like a different data loader.
         """
-        return build_detection_train_loader(cfg)
+        return build_detection_train_loader(cfg, aux)
 
     @classmethod
     def build_test_loader(cls, cfg, dataset_name):

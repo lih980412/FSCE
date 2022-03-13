@@ -39,6 +39,9 @@ from ..contrastive_loss import (
 )
 from fsdet.layers import cat
 
+from fsdet.utils.visualizer import Visualizer
+from fsdet.data.detection_utils import convert_image_to_rgb
+
 ROI_HEADS_REGISTRY = Registry("ROI_HEADS")
 ROI_HEADS_REGISTRY.__doc__ = """
 Registry for ROI heads in a generalized R-CNN model.
@@ -435,7 +438,7 @@ class StandardROIHeads(ROIHeads):
             targets (List[Instance]):   fields=[gt_boxes, gt_classes]
                 gt_instances for each image, len = N
         """
-        del images
+        # del images
         if use_mixup:
             'Mixup'
             if self.training:
@@ -465,14 +468,16 @@ class StandardROIHeads(ROIHeads):
             if self.training:
                 # FastRCNNOutputs.losses()
                 # {'loss_cls':, 'loss_box_reg':}
-                losses = self._forward_box(features_list, proposals)  # get losses from fast_rcnn.py::FastRCNNOutputs
+                losses = self._forward_box(features_list, proposals, images)  # get losses from fast_rcnn.py::FastRCNNOutputs
                 return proposals, losses  # return to rcnn.py line 201
             else:
                 pred_instances = self._forward_box(features_list, proposals)
                 return pred_instances, {}
 
 
-    def _forward_box(self, features, proposals):
+
+
+    def _forward_box(self, features, proposals, images=None):
         """
         Forward logic of the box prediction branch.
 
@@ -490,6 +495,8 @@ class StandardROIHeads(ROIHeads):
         box_features = self.box_pooler(features, [x.proposal_boxes for x in proposals])  # [None, 256, POOLER_RESOLU, POOLER_RESOLU]
         box_features = self.box_head(box_features)  # [None, FC_DIM]
         pred_class_logits, pred_proposal_deltas = self.box_predictor(box_features)
+
+        # visualize_training(images, proposals)
         del box_features
 
         outputs = FastRCNNOutputs(
@@ -509,6 +516,234 @@ class StandardROIHeads(ROIHeads):
                 self.test_score_thresh, self.test_nms_thresh, self.test_detections_per_img
             )
             return pred_instances
+
+
+@ROI_HEADS_REGISTRY.register()
+class RelationROIHeads(ROIHeads):
+    """
+    It's "standard" in a sense that there is no ROI transform sharing
+    or feature sharing between tasks.
+    The cropped rois go to separate branches directly.
+    This way, it is easier to make separate abstractions for different branches.
+
+    This class is used by most models, such as FPN and C5.
+    To implement more models, you can subclass it and implement a different
+    :meth:`forward()` or a head.
+    """
+
+    def __init__(self, cfg, input_shape):
+        super(RelationROIHeads, self).__init__(cfg, input_shape)
+        self._init_box_head(cfg)
+
+    def _init_box_head(self, cfg):
+        # fmt: off
+        pooler_resolution = cfg.MODEL.ROI_BOX_HEAD.POOLER_RESOLUTION
+        pooler_scales     = tuple(1.0 / self.feature_strides[k] for k in self.in_features)
+        sampling_ratio    = cfg.MODEL.ROI_BOX_HEAD.POOLER_SAMPLING_RATIO
+        pooler_type       = cfg.MODEL.ROI_BOX_HEAD.POOLER_TYPE
+        # fmt: on
+
+        # If StandardROIHeads is applied on multiple feature maps (as in FPN),
+        # then we share the same predictors and therefore the channel counts must be the same
+        in_channels = [self.feature_channels[f] for f in self.in_features]
+        # Check all channel counts are equal
+        assert len(set(in_channels)) == 1, in_channels
+        in_channels = in_channels[0]
+
+        self.box_pooler = ROIPooler(
+            output_size=pooler_resolution,
+            scales=pooler_scales,
+            sampling_ratio=sampling_ratio,
+            pooler_type=pooler_type,
+        )
+        # Here we split "box head" and "box predictor", which is mainly due to historical reasons.
+        # They are used together so the "box predictor" layers should be part of the "box head".
+        # New subclasses of ROIHeads do not need "box predictor"s.
+        self.box_head = build_box_head(
+            cfg, ShapeSpec(channels=in_channels, height=pooler_resolution, width=pooler_resolution)
+        )
+        self.output_layer_name = cfg.MODEL.ROI_HEADS.OUTPUT_LAYER
+        self.box_predictor = ROI_HEADS_OUTPUT_REGISTRY.get(self.output_layer_name)(
+            cfg, self.box_head.output_size, self.num_classes, self.cls_agnostic_bbox_reg
+        )
+        self.nongt_dim = self.batch_size_per_image * cfg.SOLVER.IMS_PER_BATCH
+
+
+    def extract_position_matrix(self, bbox, nongt_dim):
+        """ Extract position matrix
+
+        Args:
+            bbox: [num_boxes, 4]
+
+        Returns:
+            position_matrix: [num_boxes, nongt_dim, 4]
+        """
+        xmin, ymin, xmax, ymax = torch.split(bbox, 1, 1)
+        # [num_fg_classes, num_boxes, 1]
+        bbox_width = xmax - xmin + 1.
+        bbox_height = ymax - ymin + 1.
+        center_x = 0.5 * (xmin + xmax)
+        center_y = 0.5 * (ymin + ymax)
+        # [num_fg_classes, num_boxes, num_boxes]
+        delta_x = torch.sub(center_x, center_x.T)
+        delta_x = torch.div(delta_x, bbox_width)
+        delta_x = torch.log(torch.maximum(torch.abs(delta_x), torch.tensor(1e-3)))
+        # delta_x = torch.log(torch.clip(torch.abs(delta_x), min=1e-3))
+        delta_y = torch.sub(center_y, center_y.T)
+        delta_y = torch.div(delta_y, bbox_height)
+        delta_y = torch.log(torch.maximum(torch.abs(delta_y), torch.tensor(1e-3)))
+        # delta_y = torch.log(torch.clip(torch.abs(delta_y), min=1e-3))
+        delta_width = torch.div(bbox_width, bbox_width.T)
+        delta_width = torch.log(delta_width)
+        delta_height = torch.div(bbox_height, bbox_height.T)
+        delta_height = torch.log(delta_height)
+        concat_list = [delta_x, delta_y, delta_width, delta_height]
+
+        position_matrix = torch.stack(concat_list, dim=0).permute(1, 2, 0)
+        return position_matrix
+
+    def extract_position_embedding(self, position_mat, feat_dim, wave_length=1000):
+        # position_mat, [num_rois, nongt_dim, 4]
+        # feat_range = torch.arange(0, (feat_dim / 8))
+        # dim_mat = torch.full((1,), wave_length) * (8. / feat_dim) * feat_range
+        dim_mat = torch.tensor([1., 2.37137365, 5.62341309, 13.33521461, 31.622776033, 74.98941803, 177.82794189, 421.69650269])
+        dim_mat = dim_mat.reshape(1, 1, 1, -1)
+        dim_mat = dim_mat.to("cuda")
+        # dim_mat = torch.tensor(dim_mat, device="cuda")
+        position_mat = torch.unsqueeze(100.0 * position_mat, axis=3)
+        div_mat = torch.div(position_mat, dim_mat)
+        sin_mat = torch.sin(div_mat)
+        cos_mat = torch.cos(div_mat)
+        # embedding, [num_rois, nongt_dim, 4, feat_dim/4]
+        embedding = torch.cat((sin_mat, cos_mat), axis=3)
+        # embedding, [num_rois, nongt_dim, feat_dim]
+        embedding = embedding.reshape(embedding.shape[0], embedding.shape[1], -1)
+        return embedding
+
+    def forward(self, images, features, proposals, targets=None, use_mixup=False, lambda_=None):
+        """
+        See :class:`ROIHeads.forward`.
+            proposals (List[Instance]): fields=[proposal_boxes, objectness_logits]
+                post_nms_top_k proposals for each image， len = N
+
+            targets (List[Instance]):   fields=[gt_boxes, gt_classes]
+                gt_instances for each image, len = N
+        """
+        # del images
+        if use_mixup:
+            'Mixup'
+            if self.training:
+                proposals_a = self.label_and_sample_proposals(proposals, targets)
+                targets_b = targets[::-1]
+                proposals_b = self.label_and_sample_proposals(proposals, targets_b)
+                del targets, targets_b
+            features_list = [features[f] for f in self.in_features]
+            if self.training:
+                losses = self._forward_box(features_list, proposals_a)  # get losses from fast_rcnn.py::FastRCNNOutputs
+                losses_b = self._forward_box(features_list, proposals_b)
+                losses["loss_cls"] = lambda_ * losses["loss_cls"] + (1-lambda_) * losses_b["loss_cls"]
+                # losses["loss_box_reg"] = lambda_ * losses["loss_box_reg"] + (1-lambda_) * losses_b["loss_box_reg"]
+                return proposals, losses  # return to rcnn.py line 201
+
+            else:
+                proposals = self.label_and_sample_proposals(proposals, targets)
+                pred_instances = self._forward_box(features_list, proposals)
+                return pred_instances, {}
+        else:
+            if self.training:
+                # label and sample 256 from post_nms_top_k each images
+                # has field [proposal_boxes, objectness_logits ,gt_classes, gt_boxes]
+                proposals = self.label_and_sample_proposals(proposals, targets)
+            del targets
+            features_list = [features[f] for f in self.in_features]
+            if self.training:
+                # FastRCNNOutputs.losses()
+                # {'loss_cls':, 'loss_box_reg':}
+                losses = self._forward_box(features_list, proposals, images)  # get losses from fast_rcnn.py::FastRCNNOutputs
+                return proposals, losses  # return to rcnn.py line 201
+            else:
+                pred_instances = self._forward_box(features_list, proposals)
+                return pred_instances, {}
+
+    def _forward_box(self, features, proposals, images):
+        """
+        Forward logic of the box prediction branch.
+
+        Args:
+            features (list[Tensor]): #level input features for box prediction
+            proposals (list[Instances]): the per-image object proposals with
+                their matching ground truth.
+                Each has fields "proposal_boxes", and "objectness_logits",
+                "gt_classes", "gt_boxes".
+
+        Returns:
+            In training, a dict of losses.
+            In inference, a list of `Instances`, the predicted instances.
+        """
+
+        # [num_rois, nongt_dim, 4]
+        position_matrix = self.extract_position_matrix(torch.stack([x.proposal_boxes.tensor for x in proposals], 0).reshape(-1, 4), nongt_dim=self.nongt_dim)
+        # [num_rois, nongt_dim, 64]
+        '需要注意的是 position_embedding 中存在 inf'
+        position_embedding = self.extract_position_embedding(position_matrix, feat_dim=64)
+
+        box_features = self.box_pooler(features, [x.proposal_boxes for x in proposals])  # [None, 256, POOLER_RESOLU, POOLER_RESOLU]
+        box_features = self.box_head(box_features, position_embedding)  # [None, FC_DIM]
+        pred_class_logits, pred_proposal_deltas = self.box_predictor(box_features)
+        del box_features
+
+        visualize_training(images, proposals)
+
+        outputs = FastRCNNOutputs(
+            self.box2box_transform,
+            pred_class_logits,
+            pred_proposal_deltas,
+            proposals,
+            self.smooth_l1_beta,
+            self.num_classes,
+            self.roi_focal_alpha,
+            self.roi_focal_gamma
+        )
+        if self.training:
+            return outputs.losses()
+        else:
+            pred_instances, _ = outputs.inference(
+                self.test_score_thresh, self.test_nms_thresh, self.test_detections_per_img
+            )
+            return pred_instances
+
+
+def visualize_training(images, proposals):
+    """
+    A function used to visualize images and proposals. It shows ground truth
+    bounding boxes on the original image and up to 20 top-scoring predicted
+    object proposals on the original image. Users can implement different
+    visualization functions for different models.
+    Args:
+        batched_inputs (list): a list that contains input to the model.
+        proposals (list): a list that contains predicted proposals. Both
+            batched_inputs and proposals should have the same length.
+    """
+    storage = get_event_storage()
+    max_vis_prop = 40
+
+    for image, prop in zip(images, proposals):
+        # img = input["image"]
+        img = convert_image_to_rgb(image.permute(1, 2, 0), "BGR")
+        v_gt = Visualizer(img, None)
+        v_gt = v_gt.overlay_instances(boxes=prop._fields["gt_boxes"].tensor[torch.where(proposals[0]._fields['gt_classes']!=5)].cpu().numpy())
+        anno_img = v_gt.get_image()
+        # box_size = min(len(prop.proposal_boxes), max_vis_prop)
+        v_pred = Visualizer(img, None)
+        v_pred = v_pred.overlay_instances(
+            boxes=prop._fields["proposal_boxes"].tensor[torch.where(proposals[0]._fields['gt_classes']!=5)].cpu().numpy()
+        )
+        prop_img = v_pred.get_image()
+        vis_img = np.concatenate((anno_img, prop_img), axis=1)
+        vis_img = vis_img.transpose(2, 0, 1)
+        vis_name = "RoIHEAD:: Left: GT bounding boxes;  Right: Predicted proposals"
+        storage.put_image(vis_name, vis_img)
+        break  # only visualize one image in a batch
 
 
 @ROI_HEADS_REGISTRY.register()
@@ -1084,6 +1319,71 @@ class ContrastiveROIHeads(StandardROIHeads):
                 self.test_score_thresh, self.test_nms_thresh, self.test_detections_per_img
             )
             return pred_instances
+
+
+# @ROI_HEADS_REGISTRY.register()
+# class ContrastiveROIHeadsWithMPLREWEIGHT_FUNC(StandardROIHeads):
+#     def __init__(self, cfg, input_shape):
+#         super().__init__(cfg, input_shape)
+#         # fmt: on
+#         self.fc_dim               = cfg.MODEL.ROI_BOX_HEAD.FC_DIM
+#         self.mlp_head_dim         = cfg.MODEL.ROI_BOX_HEAD.CONTRASTIVE_BRANCH.MLP_FEATURE_DIM
+#         self.temperature          = cfg.MODEL.ROI_BOX_HEAD.CONTRASTIVE_BRANCH.TEMPERATURE
+#         self.contrast_loss_weight = cfg.MODEL.ROI_BOX_HEAD.CONTRASTIVE_BRANCH.LOSS_WEIGHT
+#         self.box_reg_weight       = cfg.MODEL.ROI_BOX_HEAD.BOX_REG_WEIGHT
+#         self.weight_decay         = cfg.MODEL.ROI_BOX_HEAD.CONTRASTIVE_BRANCH.DECAY.ENABLED
+#         self.decay_steps          = cfg.MODEL.ROI_BOX_HEAD.CONTRASTIVE_BRANCH.DECAY.STEPS
+#         self.decay_rate           = cfg.MODEL.ROI_BOX_HEAD.CONTRASTIVE_BRANCH.DECAY.RATE
+#
+#         self.num_classes          = cfg.MODEL.ROI_HEADS.NUM_CLASSES
+#
+#         self.loss_version         = cfg.MODEL.ROI_BOX_HEAD.CONTRASTIVE_BRANCH.LOSS_VERSION
+#         self.contrast_iou_thres   = cfg.MODEL.ROI_BOX_HEAD.CONTRASTIVE_BRANCH.IOU_THRESHOLD
+#         self.reweight_func        = cfg.MODEL.ROI_BOX_HEAD.CONTRASTIVE_BRANCH.REWEIGHT_FUNC
+#
+#         self.cl_head_only         = cfg.MODEL.ROI_BOX_HEAD.CONTRASTIVE_BRANCH.HEAD_ONLY
+#         # fmt: off
+#
+#         self.encoder = ContrastiveHead(self.fc_dim, self.mlp_head_dim)
+#         if self.loss_version == 'V1':
+#             self.criterion = SupConLoss(self.temperature, self.contrast_iou_thres, self.reweight_func)
+#         elif self.loss_version == 'V2':
+#             self.criterion = SupConLossV2(self.temperature, self.contrast_iou_thres)
+#         self.criterion.num_classes = self.num_classes  # to be used in protype version
+#
+#     def _forward_box(self, features, proposals):
+#         box_features = self.box_pooler(features, [x.proposal_boxes for x in proposals])
+#         box_features = self.box_head(box_features)  # [None, FC_DIM]
+#         pred_class_logits, pred_proposal_deltas = self.box_predictor(box_features)
+#         box_features_contrast = self.encoder(box_features)
+#         del box_features
+#
+#         if self.weight_decay:
+#             storage = get_event_storage()
+#             if int(storage.iter) in self.decay_steps:
+#                 self.contrast_loss_weight *= self.decay_rate
+#
+#         outputs = FastRCNNContrastOutputs(
+#             self.box2box_transform,
+#             pred_class_logits,
+#             pred_proposal_deltas,
+#             proposals,
+#             self.smooth_l1_beta,
+#             box_features_contrast,
+#             self.criterion,
+#             self.contrast_loss_weight,
+#             self.box_reg_weight,
+#             self.cl_head_only,
+#         )
+#         if self.training:
+#             return outputs.losses()
+#         else:
+#             pred_instances, _ = outputs.inference(
+#                 self.test_score_thresh, self.test_nms_thresh, self.test_detections_per_img
+#             )
+#             return pred_instances
+
+
 
 
 @ROI_HEADS_REGISTRY.register()

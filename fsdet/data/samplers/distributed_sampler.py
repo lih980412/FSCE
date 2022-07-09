@@ -87,7 +87,7 @@ class RepeatFactorTrainingSampler(Sampler):
         # Get fractional repeat factors and split into whole number (_int_part)
         # and fractional (_frac_part) parts.
         rep_factors = self._get_repeat_factors(dataset_dicts, repeat_thresh)
-        self._int_part = torch.trunc(rep_factors)
+        self._int_part = torch.trunc(rep_factors)       # 移除数字的小数部分
         self._frac_part = rep_factors - self._int_part
 
     def _get_repeat_factors(self, dataset_dicts, repeat_thresh):

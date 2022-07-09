@@ -4,6 +4,88 @@
 
 # All coco categories, together with their nice-looking visualization colors
 # It's from https://github.com/cocodataset/panopticapi/blob/master/panoptic_coco_categories.json
+
+
+
+
+
+
+
+# PASCAL VOC categories
+PASCAL_VOC_ALL_CATEGORIES = {
+    1: ['aeroplane', 'bicycle', 'boat', 'bottle', 'car', 'cat', 'chair',
+        'diningtable', 'dog', 'horse', 'person', 'pottedplant', 'sheep',
+        'train', 'tvmonitor', 'bird', 'bus', 'cow', 'motorbike', 'sofa'],
+    2: ['bicycle', 'bird', 'boat', 'bus', 'car', 'cat', 'chair', 'diningtable',
+        'dog', 'motorbike', 'person', 'pottedplant', 'sheep', 'train',
+        'tvmonitor', 'aeroplane', 'bottle', 'cow', 'horse', 'sofa'],
+    3: ['aeroplane', 'bicycle', 'bird', 'bottle', 'bus', 'car', 'chair', 'cow',
+        'diningtable', 'dog', 'horse', 'person', 'pottedplant', 'train',
+        'tvmonitor', 'boat', 'cat', 'motorbike', 'sheep', 'sofa'],
+}
+
+PASCAL_VOC_NOVEL_CATEGORIES = {
+    1: ['bird', 'bus', 'cow', 'motorbike', 'sofa'],
+    2: ['aeroplane', 'bottle', 'cow', 'horse', 'sofa'],
+    3: ['boat', 'cat', 'motorbike', 'sheep', 'sofa'],
+}
+
+PASCAL_VOC_BASE_CATEGORIES = {
+    1: ['aeroplane', 'bicycle', 'boat', 'bottle', 'car', 'cat', 'chair',
+        'diningtable', 'dog', 'horse', 'person', 'pottedplant', 'sheep',
+        'train', 'tvmonitor'],
+    2: ['bicycle', 'bird', 'boat', 'bus', 'car', 'cat', 'chair', 'diningtable',
+        'dog', 'motorbike', 'person', 'pottedplant', 'sheep', 'train',
+        'tvmonitor'],
+    3: ['aeroplane', 'bicycle', 'bird', 'bottle', 'bus', 'car', 'chair', 'cow',
+        'diningtable', 'dog', 'horse', 'person', 'pottedplant', 'train',
+        'tvmonitor'],
+}
+
+def _get_lvis_instances_meta_v0_5():
+    from .lvis_v0_5_categories import LVIS_CATEGORIES
+    assert len(LVIS_CATEGORIES) == 1230
+    cat_ids = [k["id"] for k in LVIS_CATEGORIES]
+    assert min(cat_ids) == 1 and max(cat_ids) == len(
+        cat_ids
+    ), "Category ids are not in [1, #categories], as expected"
+    # Ensure that the category list is sorted by id
+    lvis_categories = [k for k in sorted(LVIS_CATEGORIES, key=lambda x: x["id"])]
+    thing_classes = [k["synonyms"][0] for k in lvis_categories]
+    meta = {"thing_classes": thing_classes}
+    return meta
+
+
+def _get_lvis_fewshot_instances_meta_v0_5():
+    from .lvis_v0_5_categories import LVIS_CATEGORIES_NOVEL
+
+    all_cats = _get_lvis_instances_meta_v0_5()["thing_classes"]
+    lvis_categories_sub = [
+        k for k in sorted(LVIS_CATEGORIES_NOVEL, key=lambda x: x["id"])
+    ]
+    sub_cats = [k["synonyms"][0] for k in lvis_categories_sub]
+    mapping = {all_cats.index(c): i for i, c in enumerate(sub_cats)}
+    meta = {"thing_classes": sub_cats, "class_mapping": mapping}
+
+    return meta
+
+
+def _get_pascal_voc_fewshot_instances_meta():
+    ret = {
+        "thing_classes": PASCAL_VOC_ALL_CATEGORIES,
+        "novel_classes": PASCAL_VOC_NOVEL_CATEGORIES,
+        "base_classes": PASCAL_VOC_BASE_CATEGORIES,
+    }
+    return ret
+
+
+
+
+
+
+
+
+
 COCO_CATEGORIES = [
     {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "person"},
     {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "bicycle"},
@@ -165,111 +247,6 @@ COCO_NOVEL_CATEGORIES = [
 ]
 
 
-MY_DATASET_CATEGORIES = [
-    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "round"},
-    {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "crack"},
-    {"color": [0, 0, 142], "isthing": 1, "id": 3, "name": "icf"},
-    {"color": [0, 0, 230], "isthing": 1, "id": 4, "name": "lop"},
-    {"color": [106, 0, 228], "isthing": 1, "id": 5, "name": "bar"},
-]
-
-MY_NOVEL_CATEGORIES = [
-    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "round"},
-    {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "crack"},
-    {"color": [0, 0, 142], "isthing": 1, "id": 3, "name": "icf"},
-    {"color": [0, 0, 230], "isthing": 1, "id": 4, "name": "lop"},
-    {"color": [106, 0, 228], "isthing": 1, "id": 5, "name": "bar"},
-]
-
-
-
-# PASCAL VOC categories
-PASCAL_VOC_ALL_CATEGORIES = {
-    1: ['aeroplane', 'bicycle', 'boat', 'bottle', 'car', 'cat', 'chair',
-        'diningtable', 'dog', 'horse', 'person', 'pottedplant', 'sheep',
-        'train', 'tvmonitor', 'bird', 'bus', 'cow', 'motorbike', 'sofa'],
-    2: ['bicycle', 'bird', 'boat', 'bus', 'car', 'cat', 'chair', 'diningtable',
-        'dog', 'motorbike', 'person', 'pottedplant', 'sheep', 'train',
-        'tvmonitor', 'aeroplane', 'bottle', 'cow', 'horse', 'sofa'],
-    3: ['aeroplane', 'bicycle', 'bird', 'bottle', 'bus', 'car', 'chair', 'cow',
-        'diningtable', 'dog', 'horse', 'person', 'pottedplant', 'train',
-        'tvmonitor', 'boat', 'cat', 'motorbike', 'sheep', 'sofa'],
-}
-
-PASCAL_VOC_NOVEL_CATEGORIES = {
-    1: ['bird', 'bus', 'cow', 'motorbike', 'sofa'],
-    2: ['aeroplane', 'bottle', 'cow', 'horse', 'sofa'],
-    3: ['boat', 'cat', 'motorbike', 'sheep', 'sofa'],
-}
-
-PASCAL_VOC_BASE_CATEGORIES = {
-    1: ['aeroplane', 'bicycle', 'boat', 'bottle', 'car', 'cat', 'chair',
-        'diningtable', 'dog', 'horse', 'person', 'pottedplant', 'sheep',
-        'train', 'tvmonitor'],
-    2: ['bicycle', 'bird', 'boat', 'bus', 'car', 'cat', 'chair', 'diningtable',
-        'dog', 'motorbike', 'person', 'pottedplant', 'sheep', 'train',
-        'tvmonitor'],
-    3: ['aeroplane', 'bicycle', 'bird', 'bottle', 'bus', 'car', 'chair', 'cow',
-        'diningtable', 'dog', 'horse', 'person', 'pottedplant', 'train',
-        'tvmonitor'],
-}
-
-MY_DATASET2_CATEGORIES = [
-    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "edgeCrack"},
-    {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "edgeUpwarping"},
-    {"color": [0, 0, 142], "isthing": 1, "id": 3, "name": "scratchIronSheet"},
-    {"color": [0, 0, 230], "isthing": 1, "id": 4, "name": "slagInclusion"},
-]
-
-
-def _get_my_dataset_instances_meta2():
-    thing_ids = [k["id"] for k in MY_DATASET2_CATEGORIES if k["isthing"] == 1]
-    thing_colors = [k["color"] for k in MY_DATASET2_CATEGORIES if k["isthing"] == 1]
-    assert len(thing_ids) == 4, len(thing_ids)
-    # Mapping from the incontiguous COCO category id to an id in [0, 79]
-    thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
-    thing_classes = [k["name"] for k in MY_DATASET2_CATEGORIES if k["isthing"] == 1]
-    ret = {
-        "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
-        "thing_classes": thing_classes,
-        "thing_colors": thing_colors,
-    }
-    return ret
-
-def _get_my_fewshot_instances_meta2():
-    pass
-
-def _get_my_dataset_instances_meta():
-    thing_ids = [k["id"] for k in MY_DATASET_CATEGORIES if k["isthing"] == 1]
-    thing_colors = [k["color"] for k in MY_DATASET_CATEGORIES if k["isthing"] == 1]
-    assert len(thing_ids) == 5, len(thing_ids)
-    # Mapping from the incontiguous COCO category id to an id in [0, 79]
-    thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
-    thing_classes = [k["name"] for k in MY_DATASET_CATEGORIES if k["isthing"] == 1]
-    ret = {
-        "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
-        "thing_classes": thing_classes,
-        "thing_colors": thing_colors,
-    }
-    return ret
-
-def _get_my_fewshot_instances_meta():
-    ret = _get_my_dataset_instances_meta()
-    novel_ids = [k["id"] for k in MY_NOVEL_CATEGORIES if k["isthing"] == 1]
-    novel_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(novel_ids)}
-    novel_classes = [k["name"] for k in MY_NOVEL_CATEGORIES if k["isthing"] == 1]
-    base_categories = [k for k in COCO_CATEGORIES \
-                        if k["isthing"] == 1 and k["name"] not in novel_classes]
-    base_ids = novel_ids
-    base_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(base_ids)}
-    base_classes = novel_classes
-    ret["novel_dataset_id_to_contiguous_id"] = novel_dataset_id_to_contiguous_id
-    ret["novel_classes"] = novel_classes
-    ret["base_dataset_id_to_contiguous_id"] = base_dataset_id_to_contiguous_id
-    ret["base_classes"] = base_classes
-    return ret
-
-
 def _get_coco_instances_meta():
     thing_ids = [k["id"] for k in COCO_CATEGORIES if k["isthing"] == 1]
     thing_colors = [k["color"] for k in COCO_CATEGORIES if k["isthing"] == 1]
@@ -302,41 +279,219 @@ def _get_coco_fewshot_instances_meta():
     return ret
 
 
-def _get_lvis_instances_meta_v0_5():
-    from .lvis_v0_5_categories import LVIS_CATEGORIES
-    assert len(LVIS_CATEGORIES) == 1230
-    cat_ids = [k["id"] for k in LVIS_CATEGORIES]
-    assert min(cat_ids) == 1 and max(cat_ids) == len(
-        cat_ids
-    ), "Category ids are not in [1, #categories], as expected"
-    # Ensure that the category list is sorted by id
-    lvis_categories = [k for k in sorted(LVIS_CATEGORIES, key=lambda x: x["id"])]
-    thing_classes = [k["synonyms"][0] for k in lvis_categories]
-    meta = {"thing_classes": thing_classes}
-    return meta
+MY_DATASET6_CATEGORIES = [
+    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "target"},
+]
 
 
-def _get_lvis_fewshot_instances_meta_v0_5():
-    from .lvis_v0_5_categories import LVIS_CATEGORIES_NOVEL
-
-    all_cats = _get_lvis_instances_meta_v0_5()["thing_classes"]
-    lvis_categories_sub = [
-        k for k in sorted(LVIS_CATEGORIES_NOVEL, key=lambda x: x["id"])
-    ]
-    sub_cats = [k["synonyms"][0] for k in lvis_categories_sub]
-    mapping = {all_cats.index(c): i for i, c in enumerate(sub_cats)}
-    meta = {"thing_classes": sub_cats, "class_mapping": mapping}
-
-    return meta
-
-
-def _get_pascal_voc_fewshot_instances_meta():
+def _get_my_dataset_instances_meta6():
+    thing_ids = [k["id"] for k in MY_DATASET6_CATEGORIES if k["isthing"] == 1]
+    thing_colors = [k["color"] for k in MY_DATASET6_CATEGORIES if k["isthing"] == 1]
+    assert len(thing_ids) == 1, len(thing_ids)
+    # Mapping from the incontiguous COCO category id to an id in [0, 79]
+    thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
+    thing_classes = [k["name"] for k in MY_DATASET6_CATEGORIES if k["isthing"] == 1]
     ret = {
-        "thing_classes": PASCAL_VOC_ALL_CATEGORIES,
-        "novel_classes": PASCAL_VOC_NOVEL_CATEGORIES,
-        "base_classes": PASCAL_VOC_BASE_CATEGORIES,
+        "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
+        "thing_classes": thing_classes,
+        "thing_colors": thing_colors,
     }
     return ret
+
+
+MY_DATASET5_CATEGORIES = [
+    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "冰墩墩"},
+    {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "Sanyo/三洋"},
+    {"color": [0, 0, 142], "isthing": 1, "id": 3, "name": "Eifini/伊芙丽"},
+    {"color": [0, 0, 230], "isthing": 1, "id": 4, "name": "PSALTER/诗篇"},
+    {"color": [106, 0, 228], "isthing": 1, "id": 5, "name": "Beaster"},
+    {"color": [0, 60, 100], "isthing": 1, "id": 6, "name": "ON/昂跑"},
+    {"color": [0, 80, 100], "isthing": 1, "id": 7, "name": "BYREDO/柏芮朵"},
+    {"color": [0, 0, 70], "isthing": 1, "id": 8, "name": "Ubras"},
+    {"color": [0, 0, 192], "isthing": 1, "id": 9, "name": "Eternelle"},
+    {"color": [250, 170, 30], "isthing": 1, "id": 10, "name": "PERFECT DIARY/完美日记"},
+    {"color": [100, 170, 30], "isthing": 1, "id": 11, "name": "花西子"},
+    {"color": [183, 130, 88], "isthing": 1, "id": 12, "name": "Clarins/娇韵诗"},
+    {"color": [220, 220, 0], "isthing": 1, "id": 13, "name": "L'occitane/欧舒丹"},
+    {"color": [175, 116, 175], "isthing": 1, "id": 14, "name": "Versace/范思哲"},
+    {"color": [250, 0, 30], "isthing": 1, "id": 15, "name": "Mizuno/美津浓"},
+    {"color": [165, 42, 42], "isthing": 1, "id": 16, "name": "Lining/李宁"},
+    {"color": [255, 77, 255], "isthing": 1, "id": 17, "name": "DOUBLE STAR/双星"},
+    {"color": [0, 226, 252], "isthing": 1, "id": 18, "name": "YONEX/尤尼克斯"},
+    {"color": [182, 182, 255], "isthing": 1, "id": 19, "name": "Tory Burch/汤丽柏琦"},
+    {"color": [0, 82, 0], "isthing": 1, "id": 20, "name": "Gucci/古驰"},
+    {"color": [120, 166, 157], "isthing": 1, "id": 21, "name": "Louis Vuitton/路易威登"},
+    {"color": [110, 76, 0], "isthing": 1, "id": 22, "name": "CARTELO/卡帝乐鳄鱼"},
+    {"color": [174, 57, 255], "isthing": 1, "id": 23, "name": "JORDAN"},
+    {"color": [199, 100, 0], "isthing": 1, "id": 24, "name": "KENZO"},
+    {"color": [72, 0, 118], "isthing": 1, "id": 25, "name": "UNDEFEATED"},
+    {"color": [255, 179, 240], "isthing": 1, "id": 26, "name": "BOY LONDON"},
+    {"color": [0, 125, 92], "isthing": 1, "id": 27, "name": "TREYO/雀友"},
+    {"color": [209, 0, 151], "isthing": 1, "id": 28, "name": "carhartt"},
+    {"color": [188, 208, 182], "isthing": 1, "id": 29, "name": "洁柔"},
+    {"color": [0, 220, 176], "isthing": 1, "id": 30, "name": "Blancpain/宝珀"},
+    {"color": [255, 99, 164], "isthing": 1, "id": 31, "name": "GXG"},
+    {"color": [92, 0, 73], "isthing": 1, "id": 32, "name": "乐町"},
+    {"color": [133, 129, 255], "isthing": 1, "id": 33, "name": "Diadora/迪亚多纳"},
+    {"color": [78, 180, 255], "isthing": 1, "id": 34, "name": "TUCANO/啄木鸟"},
+    {"color": [0, 228, 0], "isthing": 1, "id": 35, "name": "Loewe"},
+    {"color": [174, 255, 243], "isthing": 1, "id": 36, "name": "Granite Gear"},
+    {"color": [45, 89, 255], "isthing": 1, "id": 37, "name": "DESCENTE/迪桑特"},
+    {"color": [134, 134, 103], "isthing": 1, "id": 38, "name": "OSPREY"},
+    {"color": [145, 148, 174], "isthing": 1, "id": 39, "name": "Swatch/斯沃琪"},
+    {"color": [255, 208, 186], "isthing": 1, "id": 40, "name": "erke/鸿星尔克"},
+    {"color": [197, 226, 255], "isthing": 1, "id": 41, "name": "Massimo Dutti"},
+    {"color": [171, 134, 1], "isthing": 1, "id": 42, "name": "PINKO"},
+    {"color": [109, 63, 54], "isthing": 1, "id": 43, "name": "PALLADIUM"},
+    {"color": [207, 138, 255], "isthing": 1, "id": 44, "name": "origins/悦木之源"},
+    {"color": [151, 0, 95], "isthing": 1, "id": 45, "name": "Trendiano"},
+    {"color": [9, 80, 61], "isthing": 1, "id": 46, "name": "音儿"},
+    {"color": [84, 105, 51], "isthing": 1, "id": 47, "name": "Monster Guardians"},
+    {"color": [74, 65, 105], "isthing": 1, "id": 48, "name": "敷尔佳"},
+    {"color": [166, 196, 102], "isthing": 1, "id": 49, "name": "IPSA/茵芙莎"},
+    {"color": [208, 195, 210], "isthing": 1, "id": 50, "name": "Schwarzkopf/施华蔻"}
+]
+
+
+def _get_my_dataset_instances_meta5():
+    thing_ids = [k["id"] for k in MY_DATASET5_CATEGORIES if k["isthing"] == 1]
+    thing_colors = [k["color"] for k in MY_DATASET5_CATEGORIES if k["isthing"] == 1]
+    assert len(thing_ids) == 50, len(thing_ids)
+    # Mapping from the incontiguous COCO category id to an id in [0, 79]
+    thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
+    thing_classes = [k["name"] for k in MY_DATASET5_CATEGORIES if k["isthing"] == 1]
+    ret = {
+        "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
+        "thing_classes": thing_classes,
+        "thing_colors": thing_colors,
+    }
+    return ret
+
+
+
+
+MY_DATASET4_CATEGORIES = [
+    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "center_segregationC"},
+    {"color": [166, 196, 102], "isthing": 1, "id": 2, "name": "center_segregationB"},
+    {"color": [208, 195, 210], "isthing": 1, "id": 3, "name": "center_segregationA"},
+    {"color": [119, 11, 32], "isthing": 1, "id": 4, "name": "center_porosity"},
+    {"color": [145, 148, 174], "isthing": 1, "id": 5, "name": "center_crack"},
+]
+
+
+def _get_my_dataset_instances_meta4():
+    thing_ids = [k["id"] for k in MY_DATASET4_CATEGORIES if k["isthing"] == 1]
+    thing_colors = [k["color"] for k in MY_DATASET4_CATEGORIES if k["isthing"] == 1]
+    assert len(thing_ids) == 5, len(thing_ids)
+    # Mapping from the incontiguous COCO category id to an id in [0, 79]
+    thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
+    thing_classes = [k["name"] for k in MY_DATASET4_CATEGORIES if k["isthing"] == 1]
+    ret = {
+        "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
+        "thing_classes": thing_classes,
+        "thing_colors": thing_colors,
+    }
+    return ret
+
+
+
+MY_DATASET3_CATEGORIES = [
+    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "copper"},
+    {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "cutting"},
+    {"color": [0, 0, 142], "isthing": 1, "id": 3, "name": "fatigue"},
+    {"color": [130, 114, 135], "isthing": 1, "id": 4, "name": "sever_sliding"},
+    {"color": [163, 255, 0], "isthing": 1, "id": 5, "name": "spherical"},
+]
+
+
+def _get_my_dataset_instances_meta3():
+    thing_ids = [k["id"] for k in MY_DATASET3_CATEGORIES if k["isthing"] == 1]
+    thing_colors = [k["color"] for k in MY_DATASET3_CATEGORIES if k["isthing"] == 1]
+    assert len(thing_ids) == 5, len(thing_ids)
+    # Mapping from the incontiguous COCO category id to an id in [0, 79]
+    thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
+    thing_classes = [k["name"] for k in MY_DATASET3_CATEGORIES if k["isthing"] == 1]
+    ret = {
+        "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
+        "thing_classes": thing_classes,
+        "thing_colors": thing_colors,
+    }
+    return ret
+
+def _get_my_fewshot_instances_meta3():
+    pass
+
+
+
+MY_DATASET2_CATEGORIES = [
+    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "edgeCrack"},
+    {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "edgeUpwarping"},
+    {"color": [0, 0, 142], "isthing": 1, "id": 3, "name": "scratchIronSheet"},
+    {"color": [0, 0, 230], "isthing": 1, "id": 4, "name": "slagInclusion"},
+]
+
+def _get_my_dataset_instances_meta2():
+    thing_ids = [k["id"] for k in MY_DATASET2_CATEGORIES if k["isthing"] == 1]
+    thing_colors = [k["color"] for k in MY_DATASET2_CATEGORIES if k["isthing"] == 1]
+    assert len(thing_ids) == 4, len(thing_ids)
+    # Mapping from the incontiguous COCO category id to an id in [0, 79]
+    thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
+    thing_classes = [k["name"] for k in MY_DATASET2_CATEGORIES if k["isthing"] == 1]
+    ret = {
+        "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
+        "thing_classes": thing_classes,
+        "thing_colors": thing_colors,
+    }
+    return ret
+def _get_my_fewshot_instances_meta2():
+    pass
+
+
+MY_DATASET_CATEGORIES = [
+    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "round"},
+    {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "crack"},
+    {"color": [0, 0, 142], "isthing": 1, "id": 3, "name": "icf"},
+    {"color": [0, 0, 230], "isthing": 1, "id": 4, "name": "lop"},
+    {"color": [106, 0, 228], "isthing": 1, "id": 5, "name": "bar"},
+]
+MY_NOVEL_CATEGORIES = [
+    {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "round"},
+    {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "crack"},
+    {"color": [0, 0, 142], "isthing": 1, "id": 3, "name": "icf"},
+    {"color": [0, 0, 230], "isthing": 1, "id": 4, "name": "lop"},
+    {"color": [106, 0, 228], "isthing": 1, "id": 5, "name": "bar"},
+]
+
+def _get_my_dataset_instances_meta():
+    thing_ids = [k["id"] for k in MY_DATASET_CATEGORIES if k["isthing"] == 1]
+    thing_colors = [k["color"] for k in MY_DATASET_CATEGORIES if k["isthing"] == 1]
+    assert len(thing_ids) == 5, len(thing_ids)
+    # Mapping from the incontiguous COCO category id to an id in [0, 79]
+    thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
+    thing_classes = [k["name"] for k in MY_DATASET_CATEGORIES if k["isthing"] == 1]
+    ret = {
+        "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
+        "thing_classes": thing_classes,
+        "thing_colors": thing_colors,
+    }
+    return ret
+def _get_my_fewshot_instances_meta():
+    ret = _get_my_dataset_instances_meta()
+    novel_ids = [k["id"] for k in MY_NOVEL_CATEGORIES if k["isthing"] == 1]
+    novel_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(novel_ids)}
+    novel_classes = [k["name"] for k in MY_NOVEL_CATEGORIES if k["isthing"] == 1]
+    base_categories = [k for k in COCO_CATEGORIES \
+                        if k["isthing"] == 1 and k["name"] not in novel_classes]
+    base_ids = novel_ids
+    base_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(base_ids)}
+    base_classes = novel_classes
+    ret["novel_dataset_id_to_contiguous_id"] = novel_dataset_id_to_contiguous_id
+    ret["novel_classes"] = novel_classes
+    ret["base_dataset_id_to_contiguous_id"] = base_dataset_id_to_contiguous_id
+    ret["base_classes"] = base_classes
+    return ret
+
+
 
 
 def _get_builtin_metadata(dataset_name):
@@ -356,6 +511,17 @@ def _get_builtin_metadata(dataset_name):
         return _get_my_fewshot_instances_meta()
     elif dataset_name == "custom2":
         return _get_my_dataset_instances_meta2()
-    elif dataset_name == "custom2_fewshot":
-        return _get_my_fewshot_instances_meta2()
+    elif dataset_name == "custom3":
+        return _get_my_dataset_instances_meta3()
+    elif dataset_name == "custom4":
+        return _get_my_dataset_instances_meta4()
+    elif dataset_name == "custom5":
+        return _get_my_dataset_instances_meta5()
+    elif dataset_name == "custom6":
+        return _get_my_dataset_instances_meta6()
+
+    # elif dataset_name == "custom2":
+    #     return _get_my_dataset_instances_meta2()
+    # elif dataset_name == "custom2_fewshot":
+    #     return _get_my_fewshot_instances_meta2()
     raise KeyError("No built-in metadata for dataset {}".format(dataset_name))

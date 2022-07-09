@@ -4,12 +4,12 @@
 import logging
 import random
 import torch.nn as nn
-import numba
+# import numba
 import numpy as np
 import time
 import weakref
 import torch
-
+from torch.cuda import amp
 
 import fsdet.utils.comm as comm
 from fsdet.utils.events import EventStorage
@@ -191,7 +191,7 @@ class SimpleTrainer(TrainerBase):
     or write your own training loop.
     """
 
-    def __init__(self, model, data_loader, optimizer, data_loader_aux=None):
+    def __init__(self, model, data_loader, optimizer, cfg=None, data_loader_aux=None):
         """
         Args:
             model: a torch Module. Takes a data from data_loader and returns a
@@ -212,12 +212,17 @@ class SimpleTrainer(TrainerBase):
         self.model = model
         self.data_loader = data_loader
         self._data_loader_iter = iter(data_loader)
+        self._data_loader_aux_iter = None
         if data_loader_aux is not None:
             self._data_loader_aux_iter = iter(data_loader_aux)
         self.optimizer = optimizer
 
         self.task_num = 2
         self.log_vars = nn.Parameter(torch.zeros((self.task_num)))
+        if cfg:
+            self.fp16 = cfg.MODEL.IMG_TOHALF
+        else:
+            self.fp16 = None
 
 
     def run_step(self):
@@ -229,19 +234,28 @@ class SimpleTrainer(TrainerBase):
         """
         If your want to do something with the data, you can wrap the dataloader.
         """
+
         data = next(self._data_loader_iter)
+        data_time = time.perf_counter() - start
+        data_aux = None
         if self._data_loader_aux_iter is not None:
             data_aux = next(self._data_loader_aux_iter)
-        data_time = time.perf_counter() - start
 
         """
         If your want to do something with the losses, you can wrap the model.
         """
-        loss_dict = self.model(data, data_aux)
+        if self.fp16:
+            scaler = amp.GradScaler()
+            with amp.autocast():
+                loss_dict = self.model(data, data_aux)
+        else:
+            loss_dict = self.model(data, data_aux)
+
 
         losses = sum(loss for loss in loss_dict.values())
 
-        self._detect_anomaly(losses, loss_dict)
+        if not self.fp16:
+            self._detect_anomaly(losses, loss_dict)
 
         metrics_dict = loss_dict
         metrics_dict["data_time"] = data_time
@@ -251,8 +265,15 @@ class SimpleTrainer(TrainerBase):
         If you need accumulate gradients or something similar, you can
         wrap the optimizer with your custom `zero_grad()` method.
         """
-        self.optimizer.zero_grad()
-        losses.backward()
+        if self.fp16:
+            self.optimizer.zero_grad()
+            scaler.scale(losses).backward()
+            scaler.step(self.optimizer)
+            scaler.update()
+
+        else:
+            self.optimizer.zero_grad()
+            losses.backward()
 
         """
         If you need gradient clipping/scaling or other processing, you can
@@ -312,21 +333,10 @@ class SimpleTrainer(TrainerBase):
         beta_distribution = torch.distributions.beta.Beta(alpha, alpha)
         lambda_ = beta_distribution.sample([]).item()
         data = next(self._data_loader_iter)
-        assert len(data) % 2 == 0, "Batch size must be EVEN when using Mixup."
-        data_reverse = data[::-1]
-        for i in range(len(data)):
-            if data[i]["image"].shape[1] != 700:
-                sub = 700 - data[i]["image"].shape[1]
-                data[i]["image"] = comm.padd(data[i]["image"], sub)
 
-            if data_reverse[i]["image"].shape[1] != 700:
-                sub = 700 - data_reverse[i]["image"].shape[1]
-                data_reverse[i]["image"] = comm.padd(data_reverse[i]["image"], sub)
-
-            data[i]["image"] = lambda_ * data[i]["image"] + (1 - lambda_) * data_reverse[i]["image"]
 
         data_time = time.perf_counter() - start
-        loss_dict = self.model(data, lambda_)
+        loss_dict = self.model(data, lambda_=lambda_)
         losses = sum(loss for loss in loss_dict.values())
 
         self._detect_anomaly(losses, loss_dict)

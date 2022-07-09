@@ -1,0 +1,143 @@
+_BASE_: "../Base-RCNN-FPN.yaml"
+SEED: 11234
+MODEL:
+#  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/dla60.pth"
+  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/coco/model_final.pth"
+#  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/tianchi_dla60/Cascade/model_final.pth"
+  IMG_TOHALF: False
+#  PIXEL_MEAN: [60., 60., 60.]
+  MASK_ON: False
+  DLA:
+    ARCH: "DLA-60"
+  BACKBONE:
+    NAME: build_dla_fpn_backbone
+    FREEZE: False
+    FREEZE_AT: 5
+    FREEZE_P5: False
+  FPN:
+    IN_FEATURES:
+    - level2
+    - level3
+    - level4
+    - level5
+#  ROI_HEADS:
+#    BATCH_SIZE_PER_IMAGE: 256 # 1
+#    NUM_CLASSES: 50
+#    FREEZE_FEAT: False
+#    PROPOSAL_APPEND_GT: True
+
+  ROI_HEADS:
+    NAME: CascadeROIHeads
+    BATCH_SIZE_PER_IMAGE: 256 # 1
+    NUM_CLASSES: 50
+    FREEZE_FEAT: False
+    PROPOSAL_APPEND_GT: True
+  ROI_BOX_CASCADE_HEAD:
+    BBOX_REG_WEIGHTS: ((10.0, 10.0, 5.0, 5.0), (20.0, 20.0, 10.0, 10.0), (30.0, 30.0, 15.0, 15.0),)
+    IOUS: (0.5, 0.6, 0.7)
+  ROI_BOX_HEAD:
+    CLS_AGNOSTIC_BBOX_REG: True
+
+#    FOCAL_ALPHA: 0.25
+#    FOCAL_GAMMA: 2.
+#  ROI_BOX_HEAD:
+#    NAME: FastRCNNGEMFCHead
+
+#  ROI_HEADS:
+#    NAME: "RelationROIHeads"
+#    BATCH_SIZE_PER_IMAGE: 256 # 1
+#    NUM_CLASSES: 5
+#    FREEZE_FEAT: False
+#    PROPOSAL_APPEND_GT: False
+##    FOCAL_ALPHA: 0.25
+##    FOCAL_GAMMA: 2.
+#  ROI_BOX_HEAD:
+#    NAME: "FastRCNNRelationFCHead"
+
+#  ROI_HEADS:
+#    NAME: "ContrastiveROIHeads"
+#    NUM_CLASSES: 5
+#    OUTPUT_LAYER: "CosineSimOutputLayers"
+#    FREEZE_FEAT: False
+#    BATCH_SIZE_PER_IMAGE: 256 # do increased positive fraction help? Yes, it does.
+##    FOCAL_ALPHA: 0.25
+##    FOCAL_GAMMA: 2.
+#  ROI_BOX_HEAD:
+#    CONTRASTIVE_BRANCH:
+#      TEMPERATURE: 0.2
+#      LOSS_WEIGHT: 0.5
+#      DECAY:
+#        ENABLED: True
+#        STEPS: [ 6000, 10000 ]
+#        RATE: 0.5
+#      IOU_THRESHOLD: 0.8  # high credibility proposals provide consistency
+#      REWEIGHT_FUNC: exp
+
+#  ANCHOR_GENERATOR:
+#    SIZES: [[27., 49., 64., 83., 109.]]    # 220123
+#    ASPECT_RATIOS: [[0.2, 0.5, 1.]]        # 220123
+#    SIZES: [[23.8, 78.8, 135.6, 195.2, 260]]
+#    ASPECT_RATIOS: [[1.05, 6.1, 13]]
+#    SIZES: [[23, 75.7, 126.8, 177, 242.9]]    # 555
+#    ASPECT_RATIOS: [[0.21, 1.7, 12.3]]      # 555
+#    SIZES: [[39, 158, 271, 350, 433]]   # _before
+#    ASPECT_RATIOS:  [[1.7, 5.3, 5.6]]   # _before
+#    SIZES: [ [ 23, 75.7, 126.8, 177, 242.9 ] ]    # moli
+#    ASPECT_RATIOS: [ [ 0.98, 1.0, 1.25 ] ]      # moli
+  PROPOSAL_GENERATOR:
+    FREEZE: False
+  RPN:
+    POST_NMS_TOPK_TRAIN: 2000 # 2
+#    FOCAL_ALPHA: 1.
+#    FOCAL_GAMMA: 2.
+
+#DATALOADER:
+#  SAMPLER_TRAIN: RepeatFactorTrainingSampler
+#  REPEAT_THRESHOLD: 0.3
+
+DATASETS:
+#  TRAIN: ('custom1_train',)
+#  TEST: ('custom1_val',)
+#  TRAIN: ('custom2_train_220123',)
+#  TEST: ('custom2_val_220123',)
+#  TRAIN: ('custom1_train_555', )
+#  TRAIN_AUX: ('coco_2014_val', )
+#  TRAIN: ('moli_train', )
+#  TEST: ('moli_val',)
+  TRAIN: ('TianC_train', )
+  TEST: ('TianC_val',)
+#  TRAIN: ('custom1_train_before',)
+#  TEST: ('custom1_val_before',)
+SOLVER:
+  NAME: SGD
+  LR_SCHEDULER_NAME: WarmupMultiStepLR
+  IMS_PER_BATCH: 4
+  STEPS: (60000, 80000)
+#  STEPS: (60000, 85000, 110000)
+  CHECKPOINT_PERIOD: 5000
+  MAX_ITER: 90000
+  WARMUP_ITERS: 2000
+#  WARMUP_ITERS: 0
+  BASE_LR: 0.005
+#  BASE_LR: 0.001
+INPUT:
+  ResizeShortestEdge: True
+  MIN_SIZE_TRAIN: (420,)
+#  MIN_SIZE_TRAIN: (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800)
+  MIN_SIZE_TEST: (420,)
+
+  RESIZE: False
+
+  USE_TRANSFORM_AUG: False
+  USE_MIXUP: False
+  USE_MOSAIC: False
+  MOSAIC_BATCH: 4
+  CROP:
+    ENABLED: False
+OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/tianchi_dla60/reg_200_lastone"
+#OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline_555/AGG/Fuse_firstTwo"
+#OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline_555/RELATION_TWO+LABEL_SMOOTH+AGG+FREEZE_BACKBONE"
+#OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline_MoreThan555/MIXUP+LABEL_SMOOTH+Adam"
+
+#TEST:
+#  EVAL_PERIOD: 1

@@ -111,7 +111,7 @@ class FastRCNNRelationFCHead(nn.Module):
         """ Attetion module with vectorized version
 
         Args:
-            roi_feat: [num_rois, feat_dim]
+            roi_feat: [num_rois, feat_dim]    [1024, 256]
             position_embedding: [num_rois, nongt_dim, emb_dim]
             nongt_dim:
             fc_dim: should be same as group
@@ -126,7 +126,7 @@ class FastRCNNRelationFCHead(nn.Module):
         assert index == 1 or index == 2, "there is something wrong with attention module"
         dim_group = (dim[0] / group, dim[1] / group, dim[2] / group)
         if index == 1:
-            # [1, emb_dim, num_rois, nongt_dim]
+            # [1, emb_dim, num_rois, nongt_dim]             # []
             # position_feat_1, [1, fc_dim, num_rois, nongt_dim]
             position_feat_1 = self.conv_pair_pos_fc1(position_embedding)
             position_feat_1_rule = F.relu(position_feat_1, inplace=True)
@@ -137,7 +137,7 @@ class FastRCNNRelationFCHead(nn.Module):
 
             # multi head
             assert dim[0] == dim[1], 'Matrix multiply requires same dimensions!'
-            q_data = self.relation_fcq1(roi_feat)
+            q_data = self.relation_fcq1(roi_feat)                                               # 全连接层
             q_data_batch = q_data.reshape(-1, group, int(dim_group[0])).permute(1, 0, 2)
             nongt_roi_feat = roi_feat
             k_data = self.relation_fck1(nongt_roi_feat)
@@ -147,7 +147,7 @@ class FastRCNNRelationFCHead(nn.Module):
             # v_data =  mx.symbol.FullyConnected(name='value_'+str(index)+'_'+str(gid), data=roi_feat, num_hidden=dim_group[2])
             aff = torch.bmm(q_data_batch, k_data_batch.permute(0, 2, 1))
             # aff_scale, [group, num_rois, nongt_dim]->[num_rois, group, nongt_dim]
-            aff_scale = ((1.0 / math.sqrt(float(dim_group[1]))) * aff).permute(1, 0, 2)
+            aff_scale = ((1.0 / math.sqrt(float(dim_group[1]))) * aff).permute(1, 0, 2)         # 正则化
 
             assert fc_dim == group, 'fc_dim != group'
             # weighted_aff, [num_rois, fc_dim, nongt_dim]
@@ -215,25 +215,25 @@ class FastRCNNRelationFCHead(nn.Module):
                 # x = F.relu(layer(x))
                 '''Relation mudole'''
                 'common relation module'
-                # x = layer(x)
-                # attention = self.attention_module_multi_head(x, position_embedding_reshape,
-                #                                                  nongt_dim=self.nongt_dim, fc_dim=16, feat_dim=1024,
-                #                                                  index=index, group=16,
-                #                                                  dim=(1024, 1024, 1024))
-                # x = F.relu(x + attention)
-                # index += 1
-                'AGG relation module'
                 x = layer(x)
                 attention = self.attention_module_multi_head(x, position_embedding_reshape,
-                                                             nongt_dim=self.nongt_dim, fc_dim=16, feat_dim=1024,
-                                                             index=index, group=16,
-                                                             dim=(1024, 1024, 1024))
-                if index == 1:
-                    x = self.linear_aggregation1(torch.cat([x, attention, x + attention], dim=1))
-                    index += 1
-                else:
-                    x = self.linear_aggregation2(torch.cat([x, attention, x + attention], dim=1))
-                x = F.relu(x)
+                                                                 nongt_dim=self.nongt_dim, fc_dim=16, feat_dim=1024,
+                                                                 index=index, group=16,
+                                                                 dim=(1024, 1024, 1024))
+                x = F.relu(x + attention)
+                index += 1
+                'AGG relation module'
+                # x = layer(x)
+                # attention = self.attention_module_multi_head(x, position_embedding_reshape,
+                #                                              nongt_dim=self.nongt_dim, fc_dim=16, feat_dim=1024,
+                #                                              index=index, group=16,
+                #                                              dim=(1024, 1024, 1024))
+                # if index == 1:
+                #     x = self.linear_aggregation1(torch.cat([x, attention, x + attention], dim=1))
+                #     index += 1
+                # else:
+                #     x = self.linear_aggregation2(torch.cat([x, attention, x + attention], dim=1))
+                # x = F.relu(x)
         return x
 
     @property
@@ -358,8 +358,10 @@ class FastRCNNConvFCHead(nn.Module):
 
         for layer in self.conv_norm_relus:
             weight_init.c2_msra_fill(layer)
+            # layer.to("cuda:0")
         for layer in self.fcs:
             weight_init.c2_xavier_fill(layer)
+            # layer.to("cuda:0")
 
     def forward(self, x):
         for layer in self.conv_norm_relus:
@@ -369,6 +371,98 @@ class FastRCNNConvFCHead(nn.Module):
                 x = torch.flatten(x, start_dim=1)
             for layer in self.fcs:
                 x = F.relu(layer(x))
+        return x
+
+    @property
+    def output_size(self):
+        return self._output_size
+
+    @property
+    @torch.jit.unused
+    def output_shape(self):
+        """
+        Returns:
+            ShapeSpec: the output feature shape
+        """
+        o = self._output_size
+        if isinstance(o, int):
+            return ShapeSpec(channels=o)
+        else:
+            return ShapeSpec(channels=o[0], height=o[1], width=o[2])
+
+
+@ROI_BOX_HEAD_REGISTRY.register()
+class MyFastRCNNConvFCHead(nn.Module):
+    """
+    A head with several 3x3 conv layers (each followed by norm & relu) and
+    several fc layers (each followed by relu).
+    """
+
+    def __init__(self, cfg, input_shape: ShapeSpec):
+        """
+        The following attributes are parsed from config:
+            num_conv, num_fc: the number of conv/fc layers
+            conv_dim/fc_dim: the dimension of the conv/fc layers
+            norm: normalization for the conv layers
+        """
+        super().__init__()
+
+        # fmt: off
+        num_conv = cfg.MODEL.ROI_BOX_HEAD.NUM_CONV
+        conv_dim = cfg.MODEL.ROI_BOX_HEAD.CONV_DIM
+        num_fc = cfg.MODEL.ROI_BOX_HEAD.NUM_FC
+        fc_dim = cfg.MODEL.ROI_BOX_HEAD.FC_DIM
+        norm = cfg.MODEL.ROI_BOX_HEAD.NORM
+        # fmt: on
+        assert num_conv + num_fc > 0
+
+        self._output_size = (input_shape.channels, input_shape.height, input_shape.width)
+
+        self.conv_norm_relus = []
+        for k in range(num_conv):
+            conv = Conv2d(
+                self._output_size[0],
+                conv_dim,
+                kernel_size=3,
+                padding=1,
+                bias=not norm,
+                norm=get_norm(norm, conv_dim),
+                activation=F.relu,
+            )
+            self.add_module("conv{}".format(k + 1), conv)
+            self.conv_norm_relus.append(conv)
+            self._output_size = (conv_dim, self._output_size[1], self._output_size[2])
+
+        self.fcs = []
+        for k in range(num_fc):
+            fc = nn.Linear(np.prod(self._output_size), fc_dim)
+            fc.to("cuda:0")
+            self.add_module("fc{}".format(k + 1), fc)
+            self.fcs.append(fc)
+            self._output_size = fc_dim
+
+        for layer in self.conv_norm_relus:
+            weight_init.c2_msra_fill(layer)
+        for layer in self.fcs:
+            weight_init.c2_xavier_fill(layer)
+
+        self.fc1 = nn.Linear(256*7*7, fc_dim)
+        self.fc2 = nn.Linear(fc_dim, fc_dim)
+        weight_init.c2_xavier_fill(self.fc1)
+        weight_init.c2_xavier_fill(self.fc2)
+        self._output_size = fc_dim
+
+    def forward(self, x):
+        for layer in self.conv_norm_relus:
+            x = layer(x)
+        if len(self.fcs):
+            if x.dim() > 2:
+                x = torch.flatten(x, start_dim=1)
+            for layer in self.fcs:
+                x = F.relu(layer(x))
+        # x = torch.flatten(x, start_dim=1)
+        # x = F.relu(self.fc1(x))
+        # x = F.relu(self.fc2(x))
         return x
 
     @property
@@ -482,22 +576,31 @@ class FastRCNNDoubleHead(nn.Module):
         for layer in self.fcs:
             weight_init.c2_xavier_fill(layer)
 
+
     def forward(self, x):
-        loc_feat = x
-        for layer in self.convs:
-            loc_feat = layer(loc_feat)
+        # loc_feat = x
+        # for layer in self.convs:
+        #     loc_feat = layer(loc_feat)
+        #
+        # loc_feat = F.adaptive_avg_pool2d(loc_feat, (1, 1))
+        # loc_feat = torch.flatten(loc_feat, start_dim=1)
+        #
+        # cls_feat = torch.flatten(x, start_dim=1)
+        # for layer in self.fcs:
+        #     cls_feat = F.relu(layer(cls_feat))
+        # return loc_feat, cls_feat
 
-        loc_feat = F.adaptive_avg_pool2d(loc_feat, (1, 1))
-        loc_feat = torch.flatten(loc_feat, start_dim=1)
-
-        cls_feat = torch.flatten(x, start_dim=1)
+        x = torch.flatten(x, start_dim=1)
         for layer in self.fcs:
-            cls_feat = F.relu(layer(cls_feat))
+            cls_feat = F.relu(layer(x))
+        for layer in self.fcs_reg:
+            loc_feat = F.relu(layer(x))
         return loc_feat, cls_feat
 
     @property
     def output_size(self):
         return self._output_size
+
 
 
 def build_box_head(cfg, input_shape):

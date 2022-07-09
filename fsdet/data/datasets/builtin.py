@@ -20,7 +20,8 @@ To add new dataset, refer to the tutorial "docs/DATASETS.md".
 import os
 
 from fsdet.data import MetadataCatalog
-from .register_coco import register_coco_instances, register_my_instances2, register_my_instances
+from .register_coco import register_coco_instances, register_my_instances2, register_my_instances, \
+    register_my_instances3, register_my_instances4, register_my_instances5, register_my_instances6
 from .meta_coco import register_meta_coco
 from .meta_mydateset import register_meta_mydateset
 from .lvis import register_lvis_instances
@@ -86,6 +87,93 @@ def register_all_coco(root=r"D:\UserD\Li\FSCE-1\datasets"):
     #         os.path.join(root, annofile),
     #     )
 
+'1 新建 _PREDEFINED_SPLITS_CUSTOM，完成register_all_custom()函数'
+'2 完成 _get_builtin_metadata()，也就是 builtin_meta.py 的 _get_my_dataset_instances_meta() 和 MY_DATASET_CATEGORIES'
+'3 完成 register_my_instances()'
+'4 在 train_net.py 里完成 Evaluator'
+
+_PREDEFINED_SPLITS_CUSTOM6 = {}
+_PREDEFINED_SPLITS_CUSTOM6["custom6"] = {
+    "DiBei_train_only": ("DiBei/image", "DiBei/annotations/instances_train.json"),
+    "DiBei_val_only": ("DiBei/image", "DiBei/annotations/instances_val_19.json"),
+    "DiBei_train_only_cut": ("DiBei/image", "DiBei/annotations/instances_train_cut.json"),
+    "DiBei_val_only_cut": ("DiBei/image", "DiBei/annotations/instances_val_cut.json"),
+    "DiBei_train_only_support": ("DiBei/image_support", "DiBei/annotations/few-shot/support.json")
+}
+
+def register_all_custom6(root=r"D:\UserD\Li\FSCE-1\datasets"):
+    for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_CUSTOM6.items():
+        for key, (image_root, json_file) in splits_per_dataset.items():
+            # Assume pre-defined datasets live in `./datasets`.
+            register_my_instances6(
+                key,
+                _get_builtin_metadata(dataset_name),
+                os.path.join(root, json_file) if "://" not in json_file else json_file,
+                os.path.join(root, image_root),
+            )
+
+
+
+_PREDEFINED_SPLITS_TIANC = {}
+_PREDEFINED_SPLITS_TIANC["custom5"] = {
+    "TianC_train": ("TianC/image", "TianC/annotations/instances_train2017.json"),
+    "TianC_val": ("TianC/image", "TianC/annotations/instances_val2017.json"),
+}
+
+def register_all_custom5(root=r"D:\UserD\Li\FSCE-1\datasets"):
+    for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_TIANC.items():
+        for key, (image_root, json_file) in splits_per_dataset.items():
+            # Assume pre-defined datasets live in `./datasets`.
+            register_my_instances5(
+                key,
+                _get_builtin_metadata(dataset_name),
+                os.path.join(root, json_file) if "://" not in json_file else json_file,
+                os.path.join(root, image_root),
+            )
+
+
+
+_PREDEFINED_SPLITS_CUSTOM4 = {}
+_PREDEFINED_SPLITS_CUSTOM4["custom4"] = {
+    "DiBei_train": ("DiBei/image", "DiBei/annotations/instances_train.json"),
+    "DiBei_val": ("DiBei/image", "DiBei/annotations/instances_val.json"),
+    "DiBei_val_0410": ("DiBei/image", "DiBei/annotations/instances_val_0410.json"),
+    "DiBei_val_19": ("DiBei/image", "DiBei/annotations/instances_val_19.json"),
+}
+
+def register_all_custom4(root=r"D:\UserD\Li\FSCE-1\datasets"):
+    for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_CUSTOM4.items():
+        for key, (image_root, json_file) in splits_per_dataset.items():
+            # Assume pre-defined datasets live in `./datasets`.
+            register_my_instances4(
+                key,
+                _get_builtin_metadata(dataset_name),
+                os.path.join(root, json_file) if "://" not in json_file else json_file,
+                os.path.join(root, image_root),
+            )
+
+
+
+
+
+_PREDEFINED_SPLITS_CUSTOM3 = {}
+_PREDEFINED_SPLITS_CUSTOM3["custom3"] = {
+    "moli_train": ("MoLi/image", "MoLi/annotations/instances_train.json"),
+    "moli_val": ("MoLi/image", "MoLi/annotations/instances_val.json"),
+}
+
+def register_all_custom3(root=r"D:\UserD\Li\FSCE-1\datasets"):
+    for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_CUSTOM3.items():
+        for key, (image_root, json_file) in splits_per_dataset.items():
+            # Assume pre-defined datasets live in `./datasets`.
+            register_my_instances3(
+                key,
+                _get_builtin_metadata(dataset_name),
+                os.path.join(root, json_file) if "://" not in json_file else json_file,
+                os.path.join(root, image_root),
+            )
+
+
 _PREDEFINED_SPLITS_CUSTOM2 = {}
 _PREDEFINED_SPLITS_CUSTOM2["custom2"] = {
     "custom2_train_220123": ("my_dataset_22.01.23/image", "my_dataset_22.01.23/annotations/instances_train.json"),
@@ -116,6 +204,8 @@ _PREDEFINED_SPLITS_CUSTOM["custom1"] = {
     "custom1_val_before": ("my_dataset_before/image", "my_dataset_before/annotations/instances_val.json"),
     "custom1_train_same": ("my_dataset/image", "my_dataset_sameYang/annotations/instances_train.json"),
     "custom1_val_same": ("my_dataset/image", "my_dataset_sameYang/annotations/instances_val.json"),
+    "custom_train_5way10shot": ("my_dataset/image", "my_dataset_555/annotations/few-shot/5way10shot.json"),
+    "custom_support": ("my_dataset_555/image_support_64", "my_dataset_555/annotations/few-shot/support_64.json"),
 }
 
 
@@ -315,3 +405,12 @@ register_all_coco()
 register_all_custom1()
 
 register_all_custom2()
+
+register_all_custom3()
+
+register_all_custom4()
+
+
+register_all_custom5()
+
+register_all_custom6()

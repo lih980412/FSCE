@@ -7,6 +7,8 @@ from torchvision.ops import RoIPool
 
 from fsdet.layers import ROIAlign, ROIAlignRotated, cat
 
+from fsdet.layers.fuse_module import OrthogonalFusion
+
 __all__ = ["ROIPooler"]
 
 
@@ -177,6 +179,14 @@ class ROIPooler(nn.Module):
         assert canonical_box_size > 0
         self.canonical_box_size = canonical_box_size
 
+        # self.fuse = OrthogonalFusion()
+        #
+        # self.conv0 = nn.Conv2d(512, 256, kernel_size=1)
+        # self.conv1 = nn.Conv2d(512, 256, kernel_size=1)
+        # self.conv2 = nn.Conv2d(512, 256, kernel_size=1)
+        # self.conv3 = nn.Conv2d(512, 256, kernel_size=1)
+        # self.relu = nn.ReLU()
+
     def forward(self, x, box_lists):
         """
         Args:
@@ -223,6 +233,11 @@ class ROIPooler(nn.Module):
         output_size = self.output_size[0]
 
         dtype, device = x[0].dtype, x[0].device
+        # if dtype == torch.float16:
+        #     output = torch.zeros(
+        #         (num_boxes, num_channels, output_size, output_size), dtype=torch.float32, device=device
+        #     )
+        # else:
         output = torch.zeros(
             (num_boxes, num_channels, output_size, output_size), dtype=dtype, device=device
         )
@@ -231,5 +246,29 @@ class ROIPooler(nn.Module):
             inds = torch.nonzero(level_assignments == level).squeeze(1)
             pooler_fmt_boxes_level = pooler_fmt_boxes[inds]
             output[inds] = pooler(x_level, pooler_fmt_boxes_level)
+
+        '2.5'
+        # for level, (x_level, pooler) in enumerate(zip(x, self.level_poolers)):
+        #     inds = torch.nonzero(level_assignments == level).squeeze(1)
+        #     pooler_fmt_boxes_level = pooler_fmt_boxes[inds]
+        #
+        #     for i in pooler_fmt_boxes_level[:, 0].unique():
+        #         index = torch.where(pooler_fmt_boxes_level[:, 0] == i)[0]               # 挑出来位于batch中的哪一张图
+        #         inds_batch = inds[index]                                                # 应该pooling到哪张特征图上
+        #         output[inds_batch] = pooler(x_level, pooler_fmt_boxes_level[index])     # pooling proposal
+        #         global_feature = pooler(x_level, torch.tensor([[i, 0., 0., x_level.shape[2], x_level.shape[3]]],    # pooling global feature
+        #                                                       dtype=torch.float32, device="cuda:0"))
+        #         # output[inds_batch] += global_feature.repeat(len(inds_batch), 1, 1, 1)                               # feature fusion
+        #         # output[inds_batch] = self.fuse(output[inds_batch], global_feature)
+        #         f_fused = self.fuse(output[inds_batch], global_feature)
+        #         if level == 0:
+        #             output[inds_batch] = self.conv0(f_fused)
+        #         elif level == 1:
+        #             output[inds_batch] = self.conv1(f_fused)
+        #         elif level == 2:
+        #             output[inds_batch] = self.conv2(f_fused)
+        #         elif level == 3:
+        #             output[inds_batch] = self.conv3(f_fused)
+
 
         return output

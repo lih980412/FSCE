@@ -414,8 +414,14 @@ def pairwise_ciou(boxes1, boxes2):
     '''
 
     # cal the box's area of boxes1 and boxess
-    area1 = (boxes1[:, 2] - boxes1[:, 0]) * (boxes1[:, 3] - boxes1[:, 1])
-    area2 = (boxes2[:, 2] - boxes2[:, 0]) * (boxes2[:, 3] - boxes2[:, 1])
+    # area1 = (boxes1[:, 2] - boxes1[:, 0]) * (boxes1[:, 3] - boxes1[:, 1])
+    # area2 = (boxes2[:, 2] - boxes2[:, 0]) * (boxes2[:, 3] - boxes2[:, 1])
+
+
+    area1 = boxes1.area()
+    area2 = boxes2.area()
+    boxes1 = boxes1.tensor
+    boxes2 = boxes2.tensor
 
     # cal Intersection
     lt = torch.max(boxes1[:, None, :2], boxes2[:, :2])  # [N,M,2]
@@ -439,22 +445,29 @@ def pairwise_ciou(boxes1, boxes2):
     # cal center distance
     boxes1_center = (boxes1[..., :2] + boxes1[..., 2:]) * 0.5
     boxes2_center = (boxes2[..., :2] + boxes2[..., 2:]) * 0.5
-    center_dis = torch.square(boxes1_center[..., 0] - boxes2_center[..., 0]) + \
-                 torch.square(boxes1_center[..., 1] - boxes2_center[..., 1])
+    # center_dis = torch.square(boxes1_center[..., 0] - boxes2_center[..., 0]) + \
+    #              torch.square(boxes1_center[..., 1] - boxes2_center[..., 1])
+    center_dis = torch.square(boxes1_center[..., 0].unsqueeze(-1) - boxes2_center[..., 0].unsqueeze(0)) + \
+                 torch.square(boxes1_center[..., 1].unsqueeze(-1) - boxes2_center[..., 1].unsqueeze(0))
 
     # cal penalty term
     # cal width,height
     boxes1_wh = torch.maximum(boxes1[..., 2:] - boxes1[..., :2], torch.tensor(0.0))
     boxes2_wh = torch.maximum(boxes2[..., 2:] - boxes2[..., :2], torch.tensor(0.0))
+    # v = (4.0 / torch.square(torch.tensor(math.pi))) * torch.square(
+    #     (torch.arctan(boxes1_wh[..., 0] / boxes1_wh[..., 1]) -
+    #      torch.arctan(boxes2_wh[..., 0] / boxes2_wh[..., 1]))
+    # )
     v = (4.0 / torch.square(torch.tensor(math.pi))) * torch.square(
-        (torch.arctan(boxes1_wh[..., 0] / boxes1_wh[..., 1]) -
-         torch.arctan(boxes2_wh[..., 0] / boxes2_wh[..., 1]))
+        (torch.arctan(boxes1_wh[..., 0] / boxes1_wh[..., 1]).unsqueeze(-1) -
+         torch.arctan(boxes2_wh[..., 0] / boxes2_wh[..., 1]).unsqueeze(0))
     )
-    alpha = v / (1 - iou + v)
+    alpha = v / (1 - iou + v + 1e-7)
 
     # cal ciou
     cious = iou - (center_dis / outer_diagonal_line + alpha * v)
-    cious_flatten = (1 - cious).flatten()
-    localization_loss = cious_flatten.mean() * cious.shape[0]
+    return torch.maximum(cious, torch.tensor(0.0))
 
-    return localization_loss
+    # cious_flatten = (1 - cious).flatten()
+    # localization_loss = cious_flatten.mean() * cious.shape[0]
+    # return localization_loss

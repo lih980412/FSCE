@@ -21,7 +21,9 @@ def setup(args):
     cfg.merge_from_list(args.opts)
     cfg.freeze()
     return cfg
-
+# --source annotation
+# --config-file
+# --show
 
 def parse_args(in_args=None):
     parser = argparse.ArgumentParser(description="Visualize ground-truth data")
@@ -98,6 +100,7 @@ if __name__ == "__main__":
                 output(vis, "I{}_".format(num_instances) + str(per_image["image_id"]) + ".jpg")
     else:
         dicts = list(chain.from_iterable([DatasetCatalog.get(k) for k in cfg.DATASETS.TRAIN]))
+        # dicts = list(chain.from_iterable([DatasetCatalog.get(k) for k in cfg.DATASETS.TRAIN_AUX]))
         for dic in dicts:
             img = utils.read_image(dic["file_name"], "RGB")
             visualizer = Visualizer(img, metadata=metadata, scale=scale)

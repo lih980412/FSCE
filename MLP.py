@@ -656,66 +656,132 @@
 #         return images
 
 
-import numpy as np  # linear algebra
-import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
-
-import seaborn as sns
-
-sns.set()
-import matplotlib.pyplot as plt
-from PIL import Image
-# from scipy.misc import imread
-import os, cv2
-
-
-def fill_targets(row):
-    row.loc[row.species] = 1
-    return row
-
-def show_images(images_paths: list, titles=None):
-    fig = plt.figure(figsize=(12, len(images_paths)))
-    columns = 3
-    rows = len(images_paths)//columns
-    rows += 1 if len(images_paths) % columns else 0
-    for i, image_path in enumerate(images_paths):
-        img = cv2.imread(image_path)
-        if img is not None:
-            img = img[...,::-1]
-            fig.add_subplot(rows, columns, i+1)
-            if titles is None:
-                plt.title(image_path[-15:])
-            else:
-                plt.title(str(titles[i]))
-            plt.imshow(img)
-
-
-if __name__ == "__main__":
-    img_dir = r"F:\Dataset\Kaggle\train_images"
-    train_labels = pd.read_csv(r"F:\Dataset\Kaggle\train.csv")
-    train_labels['path'] = train_labels.image.apply(lambda x: os.path.join(img_dir, x))    # 添加path列，用于可视化
-
-    label_names = {}
-    for i in range(len(train_labels['species'].unique())):
-        label_names[i] = train_labels['species'].unique()[i]        # 按species统计数量
-
-    show_images(train_labels[train_labels['species'] == 'beluga'].path[:12])    # 可视化
-
-    reverse_train_labels = dict((v, k) for k, v in label_names.items())
-    for key in label_names.keys():
-        train_labels[label_names[key]] = 0
-
-    train_labels = train_labels.apply(fill_targets, axis=1)
-
-    target_counts = train_labels.drop(["image", "species", 'individual_id'], axis=1).sum(axis=0).sort_values(ascending=False)
-    sns.barplot(y=target_counts.index.values, x=target_counts.values, order=target_counts.index)
-    print(len(target_counts))
-    # plt.xticks(rotation=45)
-    # sns.countplot(train_labels.drop(["image", 'individual_id'], axis=1)["species"])
-    # plt.figure(figsize=(30, 15))
-    # plt.savefig('squares_plot.png')
+# import numpy as np  # linear algebra
+# import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
+#
+# import seaborn as sns
+#
+# sns.set()
+# import matplotlib.pyplot as plt
+# from PIL import Image
+# # from scipy.misc import imread
+# import os, cv2
+#
+#
+# def fill_targets(row):
+#     row.loc[row.species] = 1
+#     return row
+#
+# def show_images(images_paths: list, titles=None):
+#     fig = plt.figure(figsize=(12, len(images_paths)))
+#     columns = 3
+#     rows = len(images_paths)//columns
+#     rows += 1 if len(images_paths) % columns else 0
+#     for i, image_path in enumerate(images_paths):
+#         img = cv2.imread(image_path)
+#         if img is not None:
+#             img = img[...,::-1]
+#             fig.add_subplot(rows, columns, i+1)
+#             if titles is None:
+#                 plt.title(image_path[-15:])
+#             else:
+#                 plt.title(str(titles[i]))
+#             plt.imshow(img)
+#
+#
+# if __name__ == "__main__":
+#     img_dir = r"F:\Dataset\Kaggle\train_images"
+#     train_labels = pd.read_csv(r"F:\Dataset\Kaggle\train.csv")
+#     train_labels['path'] = train_labels.image.apply(lambda x: os.path.join(img_dir, x))    # 添加path列，用于可视化
+#
+#     label_names = {}
+#     for i in range(len(train_labels['species'].unique())):
+#         label_names[i] = train_labels['species'].unique()[i]        # 按species统计数量
+#
+#     show_images(train_labels[train_labels['species'] == 'beluga'].path[:12])    # 可视化
+#
+#     reverse_train_labels = dict((v, k) for k, v in label_names.items())
+#     for key in label_names.keys():
+#         train_labels[label_names[key]] = 0
+#
+#     train_labels = train_labels.apply(fill_targets, axis=1)
+#
+#     target_counts = train_labels.drop(["image", "species", 'individual_id'], axis=1).sum(axis=0).sort_values(ascending=False)
+#     sns.barplot(y=target_counts.index.values, x=target_counts.values, order=target_counts.index)
+#     print(len(target_counts))
+#     # plt.xticks(rotation=45)
+#     # sns.countplot(train_labels.drop(["image", 'individual_id'], axis=1)["species"])
+#     # plt.figure(figsize=(30, 15))
+#     # plt.savefig('squares_plot.png')
 
 # import timm
 # if __name__ == "__main__":
 #     model_list = timm.list_models()
 #     model_pretrain_list = timm.list_models(pretrained=True)
 #     print(len(model_list), len(model_pretrain_list))
+
+
+#
+# if __name__ == "__main__":
+#     a = input()
+#     b = input()
+#     print(type(b))
+#     # b = [int(b[i]) for i in range(len(b))]
+#     # print(b)
+
+
+# import matplotlib.pyplot as plt
+# import numpy as np
+# import torch
+#
+# # 设置中文
+# plt.rcParams['font.sans-serif'] = ['SimHei']
+#
+# plt.figure(figsize=(20,8),dpi=80)
+# a = np.random.random(2000)
+# print(a)
+# plt.hist(a, # 绘图数据
+#         bins = 200, # 指定直方图的条形数为20个
+#         color = 'steelblue', # 指定填充色
+#         edgecolor = 'k', # 设置直方图边界颜色
+#         label = '直方图'
+#         )# 为直方图呈现标签
+# # 刻度设置
+# plt.xticks(fontsize=15)
+# plt.yticks(fontsize=15)
+#
+# # 添加描述信息
+# plt.xlabel('年龄：岁',fontsize=20)
+# plt.ylabel('人数：个',fontsize=20)
+# plt.title('乘客年龄分布',fontsize=20)
+#
+# # 显示图形
+# plt.show()
+
+
+# import os
+# from PIL import Image
+# folder_path = r'D:\UserD\Li\FSCE-1\datasets\TianC\image'
+# extensions = []
+# index=0
+# import time
+#
+# # sub_folder_path = os.path.join(folder_path, fldr)
+# for filee in os.listdir(folder_path):
+#     file_path = os.path.join(folder_path, filee)
+#     print('** Path: {}  **'.format(file_path), end="\r", flush=True)
+#     print(file_path)
+#     im = Image.open(file_path)
+#     rgb_im = im.convert('RGB')
+#     time.sleep(0.1)
+
+if __name__ == "__main__":
+    a = input()
+    matrix = []
+
+    matrix.append(list(map(int, input().split())))
+    matrix.append(list(map(int, input().split())))
+    matrix.append(list(map(int, input().split())))
+    matrix.append(list(map(int, input().split())))
+    # index = list(map(int, input().strip().split()))
+    print(matrix)

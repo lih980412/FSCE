@@ -1,0 +1,242 @@
+_BASE_: "../Base-RCNN-FPN.yaml"
+SEED: 11234
+MODEL:
+  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/moli_dla60/Baseline/model_final.pth"   # moli
+#  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline/Baseline_MoreThan555/SIZES+RATIOS_72.431/model_72.431.pth"   # dipian
+#  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/coco/model_final.pth"             # coco
+#  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/DiBei_dla60/22_05_27_Baseline_moli_2x_rpnCIoU/model_0014999.pth"
+
+  IMG_TOHALF: False
+#  PIXEL_MEAN: [60., 60., 60.]
+  MASK_ON: False
+  GroupNorm: True
+  WeightStandardization: False  # using with GN, https://github.com/joe-siyuan-qiao/WeightStandardization
+#  PreciseBN: True    equals by cfg.TEST.PRECISE_BN.ENABLED
+  FreezeBN: False
+
+
+  DLA:
+    ARCH: "DLA-60"
+  BACKBONE:
+    NAME: build_dla_fpn_backbone
+#    NAME: build_dla_bifpn_backbone
+    FREEZE: False
+    FREEZE_AT: 5
+    FREEZE_P5: False
+    FREEZE_FIRST2: False
+  FPN:
+    IN_FEATURES:
+    - level2
+    - level3
+    - level4
+    - level5
+
+
+#  META_ARCHITECTURE: MyRCNN
+#  ROI_HEADS:
+#    NAME: MyROIHeads
+#    BATCH_SIZE_PER_IMAGE: 256 # 1
+#    NUM_CLASSES: 5
+#    FREEZE_FEAT: False
+#    PROPOSAL_APPEND_GT: True
+#    FOCAL_ALPHA: 0.25
+#    FOCAL_GAMMA: 2.
+#  ROI_BOX_HEAD:
+#    NAME: MyFastRCNNConvFCHead
+#  RPN:
+#    POST_NMS_TOPK_TEST: 1024
+
+#  META_ARCHITECTURE: MyRCNN
+#  ROI_HEADS:
+#    NAME: MyROIHeads
+#    BATCH_SIZE_PER_IMAGE: 256 # 1
+#    NUM_CLASSES: 5
+#    FREEZE_FEAT: False
+#    PROPOSAL_APPEND_GT: True
+#    FOCAL_ALPHA: 0.25
+#    FOCAL_GAMMA: 2.
+#  ROI_BOX_HEAD:
+#    NAME: MyFastRCNNConvFCHead
+#    NAME: FastRCNNGEMFCHead
+
+# Baseline
+  ROI_HEADS:
+    BATCH_SIZE_PER_IMAGE: 256 # 1
+    NUM_CLASSES: 1
+    FREEZE_FEAT: False
+    PROPOSAL_APPEND_GT: True
+    FOCAL_ALPHA: 0.25
+    FOCAL_GAMMA: 2.
+
+    WHICH_POOLING: GeM # "GeM" "Avg" "Max"
+    DIM_IN: 256
+    FEAT_DIM: 128
+    OUT_DIM: 128
+    TRAIN_AUX_WHICH_P: "p2"
+
+#  ROI_HEADS:
+#    NAME: DoubleHeadROIHeads
+#    BATCH_SIZE_PER_IMAGE: 256 # 1
+#    NUM_CLASSES: 5
+#    FREEZE_FEAT: False
+#    PROPOSAL_APPEND_GT: True
+#
+#    OUTPUT_LAYER: FastRCNNDoubleHeadCosMarginLayers
+#  ROI_BOX_HEAD:
+#    NAME: FastRCNNDoubleHead
+
+
+#  ROI_HEADS:
+#    NAME: CascadeROIHeads
+#    BATCH_SIZE_PER_IMAGE: 256 # 1
+#    NUM_CLASSES: 50
+#    FREEZE_FEAT: False
+#    PROPOSAL_APPEND_GT: True
+#  ROI_BOX_CASCADE_HEAD:
+#    BBOX_REG_WEIGHTS: ((10.0, 10.0, 5.0, 5.0), (20.0, 20.0, 10.0, 10.0), (30.0, 30.0, 15.0, 15.0),)
+#    IOUS: (0.5, 0.6, 0.7)
+#  ROI_BOX_HEAD:
+#    CLS_AGNOSTIC_BBOX_REG: True
+#    FOCAL_ALPHA: 0.75
+#    FOCAL_GAMMA: 2.
+
+
+#  ROI_HEADS:
+#    NAME: "RelationROIHeads"
+#    BATCH_SIZE_PER_IMAGE: 256 # 1
+#    NUM_CLASSES: 5
+#    FREEZE_FEAT: False
+#    PROPOSAL_APPEND_GT: False
+##    FOCAL_ALPHA: 0.25
+##    FOCAL_GAMMA: 2.
+#  ROI_BOX_HEAD:
+#    NAME: "FastRCNNRelationFCHead"
+
+#  ROI_HEADS:
+#    NAME: "ContrastiveROIHeads"
+#    NUM_CLASSES: 1
+#    OUTPUT_LAYER: "CosineSimOutputLayers"
+#    FREEZE_FEAT: False
+#    BATCH_SIZE_PER_IMAGE: 256 # do increased positive fraction help? Yes, it does.
+##    FOCAL_ALPHA: 0.25
+##    FOCAL_GAMMA: 2.
+#  ROI_BOX_HEAD:
+#    CONTRASTIVE_BRANCH:
+#      TEMPERATURE: 0.2
+#      LOSS_WEIGHT: 0.5
+#      DECAY:
+#        ENABLED: True
+#        STEPS: [ 6000, 10000 ]
+#        RATE: 0.5
+#      IOU_THRESHOLD: 0.8  # high credibility proposals provide consistency
+#      REWEIGHT_FUNC: exp
+##      LOSS_VERSION: V1
+
+  ANCHOR_GENERATOR:
+#    SIZES: [[27., 49., 64., 83., 109.]]    # 220123
+#    ASPECT_RATIOS: [[0.2, 0.5, 1.]]        # 220123
+#    SIZES: [[23.8, 78.8, 135.6, 195.2, 260]]
+#    ASPECT_RATIOS: [[1.05, 6.1, 13]]
+#    SIZES: [[23, 75.7, 126.8, 177, 242.9]]    # 555
+#    ASPECT_RATIOS: [[0.21, 1.7, 12.3]]      # 555
+#    SIZES: [[39, 158, 271, 350, 433]]   # _before
+#    ASPECT_RATIOS:  [[1.7, 5.3, 5.6]]   # _before
+    ASPECT_RATIOS:  [[1., 0.5, 0.25]]   # Dibei    h/w
+  PROPOSAL_GENERATOR:
+    FREEZE: False
+
+#  RPN:
+#    POST_NMS_TOPK_TRAIN: 2000 # 2
+#    FOCAL_ALPHA: 1.
+#    FOCAL_GAMMA: 2.
+
+#DATALOADER:
+#  SAMPLER_TRAIN: RepeatFactorTrainingSampler
+#  REPEAT_THRESHOLD: 0.3
+
+DATASETS:
+#  TRAIN: ('custom1_train',)
+#  TEST: ('custom1_val',)
+#  TRAIN: ('custom2_train_220123',)
+#  TEST: ('custom2_val_220123',)
+#  TRAIN: ('custom1_train_555', )
+#  TRAIN_AUX: ('coco_2014_val', )
+#  TRAIN: ('DiBei_train',)
+##  TEST: ('DiBei_val',)
+#  TEST: ('DiBei_val_19',)
+#  TRAIN_AUX: ('DiBei_train_only_support', )
+  TRAIN: ('DiBei_train_only',)
+  TEST: ('DiBei_val_only',)
+#  TRAIN: ('DiBei_train_only_cut',)
+#  TEST: ('DiBei_val_only_cut',)
+#  TRAIN: ('custom1_train_before',)
+#  TEST: ('custom1_val_before',)
+
+SOLVER:
+#  NAME: Adam
+  NAME: SGD
+  LR_SCHEDULER_NAME: WarmupMultiStepLR
+  IMS_PER_BATCH: 4
+
+
+  # few-shot
+  STEPS: (10000, 17500, 25000)
+#  STEPS: (60000, 85000, 110000)
+  CHECKPOINT_PERIOD: 5000
+  MAX_ITER: 30000
+  WARMUP_ITERS: 2000
+#  WARMUP_ITERS: 0
+  BASE_LR: 0.001
+#  BASE_LR: 0.005
+
+#  # 1x
+#  STEPS: (20000, 30000, 40000)
+##  STEPS: (60000, 85000, 110000)
+#  CHECKPOINT_PERIOD: 5000
+#  MAX_ITER: 50000
+#  WARMUP_ITERS: 2000
+##  WARMUP_ITERS: 0
+#  BASE_LR: 0.001
+##  BASE_LR: 0.005
+
+#  # 2x
+#  STEPS: (40000, 60000, 80000)
+##  STEPS: (60000, 85000, 110000)
+#  CHECKPOINT_PERIOD: 5000
+#  MAX_ITER: 100000
+#  WARMUP_ITERS: 2000
+##  WARMUP_ITERS: 0
+#  BASE_LR: 0.001
+##  BASE_LR: 0.005
+
+
+INPUT:
+  VIS_PERIOD: 1000
+
+  ResizeShortestEdge: False
+  MIN_SIZE_TRAIN: (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800)
+#  MIN_SIZE_TEST: (800, )
+  MIN_SIZE_TEST: (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800)
+
+  RESIZE: True
+  RESIZE_VAL: (512, 1024)
+
+  USE_TRANSFORM_AUG: True
+  USE_MIXUP: False
+  USE_MOSAIC: False
+  MOSAIC_BATCH: 4
+
+  CROP:
+    ENABLED: False
+OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/DiBei_dla60/22_06_03_Baseline_moli_GN_rpnCIoU"
+#OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Few-Shot/Baseline/5way10shot"
+#OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline_555/AGG/Fuse_firstTwo"
+#OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline_555/RELATION_TWO+LABEL_SMOOTH+AGG+FREEZE_BACKBONE"
+#OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline_MoreThan555/MIXUP+LABEL_SMOOTH+Adam"
+
+TEST:
+  PRECISE_BN:
+    ENABLED: False
+    DURING_TRAIN: 1000   # the period this hook is run, or 0 to not run during training. The hook will always run in the end of training.
+    NUM_ITER: 100   # number of iterations used to compute the precise statistics.
+  EVAL_PERIOD: 5000

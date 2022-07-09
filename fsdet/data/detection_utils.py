@@ -325,6 +325,9 @@ def build_transform_gen(cfg, is_train, aux=None):
     Returns:
         list[TransformGen]
     """
+    if aux:
+        return []
+
     if is_train:
         min_size = cfg.INPUT.MIN_SIZE_TRAIN
         max_size = cfg.INPUT.MAX_SIZE_TRAIN
@@ -341,21 +344,31 @@ def build_transform_gen(cfg, is_train, aux=None):
 
     logger = logging.getLogger(__name__)
     tfm_gens = []
-    # tfm_gens.append(T.ResizeShortestEdge(min_size, max_size, sample_style))
+    'moli、dibei 磨砺图pretrain和低倍项目用这里，追求精度'
+    # if cfg.INPUT.ResizeShortestEdge:
+    #     tfm_gens.append(T.ResizeShortestEdge(min_size, max_size, sample_style))
+
+    if cfg.INPUT.RESIZE:
+        assert cfg.INPUT.RESIZE_VAL != (0, 0), "please specified size"
+        tfm_gens.append(T.Resize(cfg.INPUT.RESIZE_VAL))
 
     if is_train:
-        # tfm_gens.append(T.ResizeShortestEdge(min_size, max_size, sample_style))
-        # tfm_gens.append(T.RandomFlip())
-        if aux:
-            tfm_gens.append(T.Resize((700, 900)))
+        'few-shot 焊缝底片小样本实验用这里，保持实验设定一致'
+        tfm_gens.append(T.ResizeShortestEdge(min_size, max_size, sample_style))
+
+        # if aux:
+        #     tfm_gens.append(T.Resize((700, 900)))
         if cfg.INPUT.USE_TRANSFORM_AUG:
             # Newer detectron2 has a RandomApply https://github.com/facebookresearch/detectron2/blob/master/detectron2/data/transforms/augmentation_impl.py
             # currently, every augmentation is about to happen definitely
             # tfm_gens.append(T.RandomSaltpepper(0.5, 0.000000001))
             # tfm_gens.append(T.RandomGaussian(0.5, 0, 0.006))
+            tfm_gens.append(T.RandomFlip())
             tfm_gens.append(T.RandomBrightness(0.85, 1.15))
             tfm_gens.append(T.RandomContrast(0.85, 1.15))
             tfm_gens.append(T.RandomSaturation(0.85, 1.15))
 
+
         logger.info("TransformGens used in training: " + str(tfm_gens))
+
     return tfm_gens

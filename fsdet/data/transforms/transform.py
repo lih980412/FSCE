@@ -8,7 +8,7 @@ from PIL import Image
 
 __all__ = ["ExtentTransform", "ResizeTransform",
 
-           "SaltPepper", "Gaussian"]
+           "SaltPepper", "Gaussian", "img_tohalfTransform"]
 
 
 class Gaussian(Transform):
@@ -69,6 +69,53 @@ class SaltPepper(Transform):
 
         return coords
 
+
+# TODO
+class img_tohalfTransform(Transform):
+    """
+    Transforms pixel colors with PIL enhance functions.
+    """
+
+    def __init__(self, src_image: np.ndarray):
+        """
+        Blends the input image (dst_image) with the src_image using formula:
+        ``src_weight * src_image + dst_weight * dst_image``
+
+        Args:
+            src_image (ndarray): Input image is blended with this image.
+                The two images must have the same shape, range, channel order
+                and dtype.
+            src_weight (float): Blend weighting of src_image
+            dst_weight (float): Blend weighting of dst_image
+        """
+        super().__init__()
+        self._set_attributes(locals())
+
+    def apply_image(self, img: np.ndarray, interp: str = None) -> np.ndarray:
+        """
+        Apply blend transform on the image(s).
+
+        Args:
+            img (ndarray): of shape NxHxWxC, or HxWxC or HxW. The array can be
+                of type uint8 in range [0, 255], or floating point in range
+                [0, 1] or [0, 255].
+            interp (str): keep this option for consistency, perform blend would not
+                require interpolation.
+        Returns:
+            ndarray: blended image(s).
+        """
+        if img.dtype == np.uint8:
+            img = img.astype(np.float32)
+            img = self.src_weight * self.src_image + self.dst_weight * img
+            return np.clip(img, 0, 255).astype(np.uint8)
+        else:
+            return self.src_weight * self.src_image + self.dst_weight * img
+
+    def apply_coords(self, coords: np.ndarray) -> np.ndarray:
+        """
+        Apply no transform on the coordinates.
+        """
+        return coords
 
 
 class ExtentTransform(Transform):

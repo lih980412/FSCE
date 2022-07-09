@@ -38,7 +38,7 @@ def MultiCEFocalLoss(predict, target, class_num, alpha=None, gamma=2, reduction=
         loss = torch.mean(floss)
     elif reduction == 'sum':
         loss = torch.sum(floss)
-    return loss * 5
+    return loss
 
 
 # class BCEFocalLoss(nn.Module):

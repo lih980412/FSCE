@@ -17,6 +17,9 @@ from .colormap import random_color
 
 logger = logging.getLogger(__name__)
 
+
+import matplotlib.pyplot as plt
+
 __all__ = ["ColorMode", "VisImage", "Visualizer"]
 
 
@@ -159,8 +162,11 @@ class Visualizer:
                 to be in the range [0, 255].
             metadata (MetadataCatalog): image metadata.
         """
-        self.img = np.asarray((img_rgb)*255.0).clip(0, 255).astype(np.uint8)
-        # self.img = np.asarray(img_rgb).clip(0, 255).astype(np.uint8)
+        if img_rgb.dtype == np.uint8:
+
+            self.img = np.asarray(img_rgb).clip(0, 255).astype(np.uint8)
+        else:
+            self.img = np.asarray((img_rgb)*255.0).clip(0, 255).astype(np.uint8)
         self.metadata = metadata
         self.output = VisImage(self.img, scale=scale)
         self.cpu_device = torch.device("cpu")
@@ -285,6 +291,7 @@ class Visualizer:
             color = assigned_colors[i]
             if boxes is not None:
                 self.draw_box(boxes[i], edge_color=color)
+
 
             if labels is not None:
                 # first get a box
@@ -412,6 +419,8 @@ class Visualizer:
         )
         return self.output
 
+
+
     def draw_box(self, box_coord, alpha=0.5, edge_color="g", line_style="-"):
         """
         Args:
@@ -426,6 +435,11 @@ class Visualizer:
         Returns:
             output (VisImage): image object with box drawn.
         """
+
+        # def label(xy, text):
+        #     y = xy[1] - 0.15  # 标签放置在patch下方的0.15位置处
+        #     plt.text(xy[0], y, text, ha="center", family='sans-serif', size=14)
+
         x0, y0, x1, y1 = box_coord
         width = x1 - x0
         height = y1 - y0
@@ -442,7 +456,8 @@ class Visualizer:
                 linewidth=linewidth * self.output.scale,
                 alpha=alpha,
                 linestyle=line_style,
-            )
+            ),
+
         )
         return self.output
 

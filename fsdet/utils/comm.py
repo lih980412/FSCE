@@ -7,8 +7,8 @@ This is useful when doing distributed training.
 import functools
 import logging
 
-import numba as numba
-from numba import types, typed
+# import numba as numba
+# from numba import types, typed
 
 import numpy as np
 import pickle, time

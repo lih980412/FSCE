@@ -8,14 +8,18 @@ img_h, img_w = 900, 700  # 根据自己数据集适当调整，影响不大
 means, stdevs = [], []
 img_list = []
 
-imgs_path = r'D:\UserD\Li\FSCE-1\datasets\my_dataset\image'
+imgs_path = r'D:\UserD\Li\FSCE-1\datasets\TianC\image'
 imgs_path_list = os.listdir(imgs_path)
 
 len_ = len(imgs_path_list)
 i = 0
 for item in imgs_path_list:
     img = cv2.imread(os.path.join(imgs_path, item))
-    img = cv2.resize(img, (img_w, img_h))
+    try:
+        img = cv2.resize(img, (img_w, img_h))
+    except:
+        print(item)
+        continue
     img = img[:, :, :, np.newaxis]
     img_list.append(img)
     i += 1

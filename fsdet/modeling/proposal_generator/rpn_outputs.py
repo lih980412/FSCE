@@ -408,7 +408,7 @@ class RPNOutputs(object):
             print(len(result))
             for i in range(len(result)):
                 cv2.rectangle(img_np, (int(result[i][0]), int(result[i][1])), (int(result[i][2]), int(result[i][3])),
-                                  color=(0, 0, 228), thickness=1)
+                                  color=(0, 228, 0), thickness=2)
             cv2.imshow('1', img_np)
             cv2.waitKey(0)
 
@@ -431,7 +431,8 @@ class RPNOutputs(object):
             anchors_i: anchors for i-th image
             gt_boxes_i: ground-truth boxes for i-th image
             """
-            match_quality_matrix = pairwise_iou(gt_boxes_i, anchors_i)
+            # match_quality_matrix = pairwise_iou(gt_boxes_i, anchors_i)
+            match_quality_matrix = pairwise_ciou(gt_boxes_i, anchors_i)
             # matched_idxs is the ground-truth index in [0, M)
             # gt_objectness_logits_i is [0, -1, 1] indicating proposal is true positive, ignored or false positive
             matched_idxs, gt_objectness_logits_i = self.anchor_matcher(match_quality_matrix)
@@ -448,7 +449,7 @@ class RPNOutputs(object):
                 matched_gt_boxes = gt_anchor_deltas_i
             else:
                 # TODO wasted computation for ignored boxes
-                matched_gt_boxes = gt_boxes_i[matched_idxs]
+                matched_gt_boxes = gt_boxes_i[matched_idxs]             # 上面返回的matched_idxs的意思是anchor与哪个gt匹配的最好，这里就“取”出这个gt
                 gt_anchor_deltas_i = self.box2box_transform.get_deltas(
                     anchors_i.tensor, matched_gt_boxes.tensor
                 )
@@ -523,7 +524,7 @@ class RPNOutputs(object):
         # Split to tuple of L tensors, each with shape (N, num_anchors_per_map)
         gt_objectness_logits = torch.split(gt_objectness_logits, num_anchors_per_map, dim=1)
         # Concat from all feature maps
-        gt_objectness_logits = cat([x.flatten() for x in gt_objectness_logits], dim=0)
+        gt_objectness_logits = cat([x.flatten() for x in gt_objectness_logits], dim=0)      # 将一个batch内的同一大小特征图上的anchor合并
 
         # Stack to: (N, num_anchors_per_image, B)
         gt_anchor_deltas = torch.stack(gt_anchor_deltas, dim=0)

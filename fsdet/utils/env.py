@@ -28,9 +28,17 @@ def seed_all_rng(seed=None):
         seed = 34297683
         logger = logging.getLogger(__name__)
         logger.info("Using a generated random seed {}".format(seed))
+
     np.random.seed(seed)
     torch.set_rng_state(torch.manual_seed(seed).get_state())
     random.seed(seed)
+
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    # np.random.seed(seed)
+    # random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
 
 
 # from https://stackoverflow.com/questions/67631/how-to-import-a-module-given-the-full-path

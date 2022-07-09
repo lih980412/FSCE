@@ -143,7 +143,7 @@ def default_setup(cfg, args):
         logger.info("Full config saved to {}".format(os.path.abspath(path)))
 
     # make sure each worker has a different, yet deterministic seed if specified
-    seed_all_rng(None if cfg.SEED < 0 else cfg.SEED + rank)
+    seed_all_rng(None if cfg.SEED < 0 else cfg.SEED)
 
     # cudnn benchmark has large overhead. It shouldn't be used considering the small size of
     # typical validation set.
@@ -267,7 +267,9 @@ class DefaultTrainer(SimpleTrainer):
         # model.backbone.bottom_up.avgpool =
         optimizer = self.build_optimizer(cfg, model)
         data_loader = self.build_train_loader(cfg)
-        data_loader_aux = self.build_train_loader(cfg, cfg.DATASETS.TRAIN_AUX)
+        data_loader_aux = None
+        if cfg.DATASETS.TRAIN_AUX:
+            data_loader_aux = self.build_train_loader(cfg, cfg.DATASETS.TRAIN_AUX)
 
         # For training, wrap with DDP. But don't need this for inference.
         if comm.get_world_size() > 1:
@@ -276,7 +278,10 @@ class DefaultTrainer(SimpleTrainer):
                 broadcast_buffers=False,
                 find_unused_parameters=True
             )
-        super().__init__(model, data_loader, optimizer, data_loader_aux)
+        if cfg.MODEL.IMG_TOHALF:
+            super().__init__(model, data_loader, optimizer, cfg, data_loader_aux)
+        else:
+            super().__init__(model, data_loader, optimizer, data_loader_aux=data_loader_aux)
 
         self.scheduler = self.build_lr_scheduler(cfg, optimizer)
         # Assume no other objects need to be checkpointed.
@@ -330,14 +335,15 @@ class DefaultTrainer(SimpleTrainer):
             hooks.LRScheduler(self.optimizer, self.scheduler),
             hooks.PreciseBN(
                 # Run at the same freq as (but before) evaluation.
-                cfg.TEST.EVAL_PERIOD,
+                # cfg.TEST.EVAL_PERIOD,
+                cfg.TEST.PRECISE_BN.DURING_TRAIN,
                 self.model,
                 # Build a new data loader to not affect training
                 self.build_train_loader(cfg),
                 cfg.TEST.PRECISE_BN.NUM_ITER,
             )
-            if cfg.TEST.PRECISE_BN.ENABLED and get_bn_modules(self.model)
-            else None,
+            # if cfg.TEST.PRECISE_BN.ENABLED and get_bn_modules(self.model)
+            if cfg.TEST.PRECISE_BN.ENABLED else None,
         ]
 
         # Do PreciseBN before checkpointer, because it updates the model and need to

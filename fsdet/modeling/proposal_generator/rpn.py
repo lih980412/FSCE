@@ -82,6 +82,7 @@ class StandardRPNHead(nn.Module):
         return pred_objectness_logits, pred_anchor_deltas
 
 
+
 @PROPOSAL_GENERATOR_REGISTRY.register()
 class RPN(nn.Module):
     """

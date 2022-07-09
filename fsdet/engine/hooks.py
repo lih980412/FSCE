@@ -404,7 +404,7 @@ class PreciseBN(HookBase):
     def after_step(self):
         next_iter = self.trainer.iter + 1
         is_final = next_iter == self.trainer.max_iter
-        if is_final or (self._period > 0 and next_iter % self._period == 0):
+        if is_final or (self._period > 0 and next_iter % self._period == 0) or next_iter == 2:
             self.update_stats()
 
     def update_stats(self):

@@ -27,6 +27,7 @@ _C.MODEL.META_ARCHITECTURE = "GeneralizedRCNN"
 # Path (possibly with schema like catalog:// or detectron2://) to a checkpoint file
 # to be loaded to the model. You can find available models in the model zoo.
 _C.MODEL.WEIGHTS = ""
+_C.MODEL.IMG_TOHALF = False
 
 # Values to be used for image normalization (BGR order).
 # To train on images of different number of channels, just set different mean & std.
@@ -51,7 +52,7 @@ _C.INPUT.MIN_SIZE_TRAIN_SAMPLING = "choice"
 # Maximum size of the side of the image during training
 _C.INPUT.MAX_SIZE_TRAIN = 1333
 # Size of the smallest side of the image during testing. Set to zero to disable resize in testing.
-_C.INPUT.MIN_SIZE_TEST = 800
+_C.INPUT.MIN_SIZE_TEST = (800,)
 # Maximum size of the side of the image during testing
 _C.INPUT.MAX_SIZE_TEST = 1333
 
@@ -77,13 +78,18 @@ _C.INPUT.FORMAT = "BGR"
 _C.INPUT.VIS_PERIOD = 1000
 
 
+_C.INPUT.RESIZE = False
+_C.INPUT.RESIZE_VAL = (0, 0)
+_C.INPUT.ResizeShortestEdge = False
+
 # -----------------------------------------------------------------------------
 # Dataset
 # -----------------------------------------------------------------------------
 _C.DATASETS = CN()
 # List of the dataset names for training. Must be registered in DatasetCatalog
 _C.DATASETS.TRAIN = ()
-_C.DATASETS.TRAIN_AUX = ()
+
+
 # List of the dataset names for testing. Must be registered in DatasetCatalog
 _C.DATASETS.TEST = ()
 
@@ -118,6 +124,9 @@ _C.MODEL.BACKBONE.FREEZE_AT = 2
 # used by fsdet to freeze all backbone
 _C.MODEL.BACKBONE.FREEZE = False
 _C.MODEL.BACKBONE.FREEZE_P5 = False
+
+_C.MODEL.BACKBONE.FREEZE_FIRST2 = False
+_C.MODEL.BACKBONE.FREEZE_FIRST4 = False
 
 # ---------------------------------------------------------------------------- #
 # FPN options
@@ -522,6 +531,7 @@ _C.TEST.EVAL_PERIOD = 0
 _C.TEST.DETECTIONS_PER_IMAGE = 100
 
 _C.TEST.PRECISE_BN = CN({"ENABLED": False})
+_C.TEST.PRECISE_BN.DURING_TRAIN = 200
 _C.TEST.PRECISE_BN.NUM_ITER = 200
 
 # ---------------------------------------------------------------------------- #
@@ -714,3 +724,21 @@ _C.INPUT.MOSAIC_BATCH = 0
 _C.INPUT.USE_ALBUMENTATIONS = False
 _C.INPUT.ALBUMENTATIONS_JSON = '/data/few-shot-det/albumentation/detection-albu-config-VOC.json'
 # -----------
+
+
+_C.MODEL.GroupNorm = False
+_C.MODEL.WeightStandardization = False
+_C.MODEL.PreciseBN = False
+_C.MODEL.FreezeBN = False
+
+
+
+_C.DATASETS.TRAIN_AUX = ()
+
+
+_C.MODEL.ROI_HEADS.TRAIN_AUX_WHICH_P = "p2"
+_C.MODEL.ROI_HEADS.WHICH_POOLING = "GeM"
+_C.MODEL.ROI_HEADS.DIM_IN = 256
+_C.MODEL.ROI_HEADS.FEAT_DIM = 128
+_C.MODEL.ROI_HEADS.OUT_DIM = 64
+_C.MODEL.ROI_HEADS.CROSS_ENTROPY = False

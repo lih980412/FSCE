@@ -44,7 +44,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--input", required=True, help="JSON file produced by the model")
     parser.add_argument("--output", required=True, help="output directory")
-    parser.add_argument("--dataset", help="name of the dataset", default="coco_2017_val")
+    parser.add_argument("--dataset", help="name of the dataset")
     parser.add_argument("--conf-threshold", default=0.5, type=float, help="confidence threshold")
     args = parser.parse_args()
 
@@ -86,5 +86,10 @@ if __name__ == "__main__":
         vis = Visualizer(img, metadata)
         vis_gt = vis.draw_dataset_dict(dic).get_image()
 
-        concat = np.concatenate((vis_pred, vis_gt), axis=1)
+        concat = np.concatenate((vis_pred, vis_gt), axis=0)
         cv2.imwrite(os.path.join(args.output, basename), concat[:, :, ::-1])
+# --input D:\UserD\Li\FSCE-1\checkpoints\DiBei_dla60\22_04_22_FSCE_moli\inference\iter_0019999.json
+# --output D:\UserD\Li\FSCE-1\checkpoints\DiBei_dla60\22_04_22_FSCE_moli\vis
+# --dataset DiBei_val
+# --conf-threshold 0.1
+

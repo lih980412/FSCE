@@ -6,6 +6,8 @@ from torch.nn.modules.utils import _pair
 
 from fsdet import _C
 
+import torch
+from torchvision.ops import roi_align
 
 class _ROIAlign(Function):
     @staticmethod
@@ -45,7 +47,7 @@ class _ROIAlign(Function):
         return grad_input, None, None, None, None, None
 
 
-roi_align = _ROIAlign.apply
+roi_align1 = _ROIAlign.apply
 
 
 class ROIAlign(nn.Module):
@@ -89,9 +91,11 @@ class ROIAlign(nn.Module):
             input: NCHW images
             rois: Bx5 boxes. First column is the index into N. The other 4 columns are xyxy.
         """
+        # if input.dtype == torch.float16:
+        #     input = input.float()
         assert rois.dim() == 2 and rois.size(1) == 5
         return roi_align(
-            input, rois, self.output_size, self.spatial_scale, self.sampling_ratio, self.aligned
+            input, rois.to(dtype=input.dtype), self.output_size, self.spatial_scale, self.sampling_ratio, self.aligned
         )
 
     def __repr__(self):

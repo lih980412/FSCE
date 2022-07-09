@@ -40,6 +40,11 @@ from fsdet.evaluation import (
     LVISEvaluator,
     PascalVOCDetectionEvaluator,
     verify_results,
+    NewDatasetEvaluator,
+    NewDatasetEvaluator2,
+    NewDatasetEvaluator3,
+    NewDatasetEvaluator4,
+    NewDatasetEvaluator5
 )
 
 
@@ -69,6 +74,17 @@ class Trainer(DefaultTrainer):
             return PascalVOCDetectionEvaluator(dataset_name)
         if evaluator_type == "lvis":
             return LVISEvaluator(dataset_name, cfg, True, output_folder)
+        if evaluator_type == "mydataset":
+            # mydataset
+            evaluator_list.append(NewDatasetEvaluator(dataset_name, cfg, True, output_folder))
+        if evaluator_type == "mydataset2":
+            evaluator_list.append(NewDatasetEvaluator2(dataset_name, cfg, True, output_folder))
+        if evaluator_type == "mydataset3":
+            evaluator_list.append(NewDatasetEvaluator3(dataset_name, cfg, True, output_folder))
+        if evaluator_type == "mydataset4":
+            evaluator_list.append(NewDatasetEvaluator4(dataset_name, cfg, True, output_folder))
+        if evaluator_type == "mydataset5":
+            evaluator_list.append(NewDatasetEvaluator5(dataset_name, cfg, True, output_folder))
         if len(evaluator_list) == 0:
             raise NotImplementedError(
                 "no Evaluator for the dataset {} with the type {}".format(

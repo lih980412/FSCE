@@ -112,7 +112,9 @@ def inference_on_dataset(model, data_loader, evaluator):
     start_time = time.time()
     total_compute_time = 0
     with inference_context(model), torch.no_grad():
+        # start_time1 = time.time()
         for idx, inputs in enumerate(data_loader):
+            # timeeee = time.time() - start_time1
             if idx == num_warmup:
                 start_time = time.time()
                 total_compute_time = 0

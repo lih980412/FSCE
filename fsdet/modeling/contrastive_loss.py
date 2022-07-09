@@ -84,14 +84,14 @@ class SupConLoss(nn.Module):
         label_mask = torch.eq(labels, labels.T).float().cuda()
 
         similarity = torch.div(
-            torch.matmul(features, features.T), self.temperature)
+            torch.matmul(features, features.T), self.temperature)           # 计算余弦相似度，相似度越小，距离越大。相似度越大，距离越小。
         # for numerical stability
-        sim_row_max, _ = torch.max(similarity, dim=1, keepdim=True)
-        similarity = similarity - sim_row_max.detach()
+        sim_row_max, _ = torch.max(similarity, dim=1, keepdim=True)         # 每个特征最不相似的特征
+        similarity = similarity - sim_row_max.detach()                      # 减去最相似的特征，惩罚距离？
 
         # mask out self-contrastive
         logits_mask = torch.ones_like(similarity)
-        logits_mask.fill_diagonal_(0)
+        logits_mask.fill_diagonal_(0)                                       # 对角线填充为0
 
         exp_sim = torch.exp(similarity) * logits_mask
         log_prob = similarity - torch.log(exp_sim.sum(dim=1, keepdim=True))
@@ -99,7 +99,7 @@ class SupConLoss(nn.Module):
         per_label_log_prob = (log_prob * logits_mask * label_mask).sum(1) / label_mask.sum(1)
 
         keep = ious >= self.iou_threshold
-        per_label_log_prob = per_label_log_prob[keep]
+        per_label_log_prob = per_label_log_prob[keep]                       # 相当于ohem的操作，与ohem相反，这里是挑出置信度高的proposal
         loss = -per_label_log_prob
 
         # coef = self._get_reweight_func(self.reweight_func)(ious)
@@ -144,24 +144,23 @@ class SupConLossV2(nn.Module):
             labels = labels.reshape(-1, 1)
 
         # mask of shape [None, None], mask_{i, j}=1 if sample i and sample j have the same label
-        label_mask = torch.eq(labels, labels.T).float().cuda()
+        label_mask = torch.eq(labels, labels.T).float().cuda()      # [1024, 1024]
 
         similarity = torch.div(
-            torch.matmul(features, features.T), self.temperature)
+            torch.matmul(features, features.T), self.temperature)           # 余弦相似度，值越大越相似
         # for numerical stability
-        sim_row_max, _ = torch.max(similarity, dim=1, keepdim=True)
-        similarity = similarity - sim_row_max.detach()
+        sim_row_max, _ = torch.max(similarity, dim=1, keepdim=True)         # 挑出最相似的
+        similarity = similarity - sim_row_max.detach()             # 将最相似的距离减为0，其余都为负值
 
         # mask out self-contrastive
         logits_mask = torch.ones_like(similarity)
         logits_mask.fill_diagonal_(0)
 
-
-        exp_sim = torch.exp(similarity)
-        mask = logits_mask * label_mask
+        exp_sim = torch.exp(similarity)                             # 映射到[0,1]之间
+        mask = logits_mask * label_mask                              # 从label_mask中滤掉对角线
         keep = (mask.sum(1) != 0 ) & (ious >= self.iou_threshold)
 
-        log_prob = torch.log(
+        log_prob = torch.log(                                   # logits_mask 除了对角线全是1
             (exp_sim[keep] * mask[keep]).sum(1) / (exp_sim[keep] * logits_mask[keep]).sum(1)
         )
 

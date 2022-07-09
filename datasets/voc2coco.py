@@ -1,10 +1,10 @@
 # coding:utf-8
 
 # pip install lxml
-
+import collections
 import os
 import glob
-import json
+import json, cv2
 import shutil
 import numpy as np
 import xml.etree.ElementTree as ET
@@ -29,12 +29,14 @@ def get_and_check(root, name, length):
     return vars
 
 
-def convert(xml_list, json_file):
+def convert(train, xml_list, json_file):
     json_dict = {"info": ['none'], "license": ['none'], "images": [], "annotations": [], "categories": []}
     categories = pre_define_categories.copy()
     bnd_id = START_BOUNDING_BOX_ID
     all_categories = {}
-    count = {'edgeCrack': 0, 'edgeUpwarping': 0, 'scratchIronSheet': 0, 'slagInclusion': 0}
+    'be care'
+    # count = {'center_segregationC': 0, 'center_segregationB': 0, 'center_segregationA': 0, 'center_porosity': 0, 'center_crack': 0}
+    count = collections.defaultdict(int)
     for index, line in enumerate(xml_list):
         # print("Processing %s"%(line))
         xml_f = line
@@ -43,9 +45,12 @@ def convert(xml_list, json_file):
         except:
             continue
         root = tree.getroot()
-        filename = os.path.basename(xml_f)[:-4] + ".jpg"
+        filename = os.path.basename(xml_f)[:-4] + ".png"
         global ID
-        image_id = "train220123" + str(ID).zfill(6)
+        if train:
+            image_id = "train220422" + str(ID).zfill(6)
+        else:
+            image_id = "val220422" + str(ID).zfill(6)
         ID += 1
         size = get_and_check(root, 'size', 1)
         width = int(get_and_check(size, 'width', 1).text)
@@ -60,6 +65,8 @@ def convert(xml_list, json_file):
         #  assert segmented == '0'
         for obj in get(root, 'object'):
             category = get_and_check(obj, 'name', 1).text
+            'be care'
+            category = category.replace("sever sliding", 'sever_sliding')
             if category in all_categories:
                 all_categories[category] += 1
                 count[category] += 1
@@ -223,16 +230,22 @@ def convert(xml_list, json_file):
 '''网站数据'''
 if __name__ == '__main__':
     # xml标注文件夹
-    xml_dirs = [r'D:\UserD\Li\FSCE-1\datasets\my_dataset_22.01.23\22.01.23_train']
+    '1 先转换没有数据扩增的 val' \
+    '2 再转换扩增后的 train，同时将 val 和 train 的图片移至 datasets' \
+    '3 '
+    xml_dirs = [r'F:\Dataset\DiBei_dataset_v3_withCut\only1\process_gangyan_val_only1_cut',
+                r'F:\Dataset\DiBei_dataset_v3_withCut\only1\process_resize_val_only1_cut']
     # 训练数据的josn文件
-    save_json_train = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_22.01.23\annotations\instances_train.json'
+    save_json_train = r'D:\UserD\Li\FSCE-1\datasets\DiBei\annotations\instances_train_cut.json'
     # 验证数据的josn文件
-    save_json_val = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_22.01.23\annotations\instances_val.json'
+    save_json_val = r'D:\UserD\Li\FSCE-1\datasets\DiBei\annotations\instances_val_cut.json'
     # 验证数据的test文件
     # save_json_test = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_split\annotations\instances_test.json'
     # 类别，这里只有dog一个类别，如果是多个类别，往classes中添加类别名字即可，比如['dog', 'person', 'cat']
-    '这里的顺序决定了目标id的顺序'
-    classes = ['edgeCrack', 'edgeUpwarping', 'scratchIronSheet', 'slagInclusion']
+    '这里的顺序决定了目标id的顺序, be care'
+    # classes = ['center_segregationC', 'center_segregationB', 'center_segregationA', 'center_porosity', 'center_crack']
+    classes = ['target']
+
     pre_define_categories = {}
     for i, cls in enumerate(classes):
         pre_define_categories[cls] = i + 1
@@ -240,8 +253,8 @@ if __name__ == '__main__':
     only_care_pre_define_categories = True
 
     # 训练数据集比例
-    train_ratio = 1
-    val_ratio = 0
+    train_ratio = 0
+    val_ratio = 1
     # print('xml_dir is {}'.format(xml_dir))
     xml_list = []
     for xml_dir in xml_dirs:
@@ -258,6 +271,8 @@ if __name__ == '__main__':
 
     train_num = int(len(xml_list) * train_ratio)
     val_num = int(len(xml_list) * val_ratio)
+    # train_num = 24*3
+    # val_num = 8*3
     print('训练样本数目是 {}'.format(train_num))
     print('验证样本数目是 {}'.format(val_num))
     print('测试样本数目是 {}'.format(len(xml_list) - train_num - val_num))
@@ -265,8 +280,20 @@ if __name__ == '__main__':
     xml_list_train = xml_list[val_num:train_num + val_num]
     xml_list_test = xml_list[train_num + val_num:]
     # 对训练数据集对应的xml进行coco转换
-    convert(xml_list_train, save_json_train)
+    # convert(1, xml_list_train, save_json_train)
     # 对验证数据集的xml进行coco转换
-    # convert(xml_list_val, save_json_val)
+    convert(0, xml_list_val, save_json_val)
     # 对测试数据集的xml进行coco转换
     # convert(xml_list_test, save_json_test)
+
+    # # xml_dirs.append(r"F:\Dataset\DiBei\data_0412_val")
+    # jpg_path = r"D:\UserD\Li\FSCE-1\datasets\DiBei\image"
+    # jpg_list = []
+    # for xml_dir in xml_dirs:
+    #     temp_jpg = []
+    #     temp_jpg = glob.glob(xml_dir + "/*.png")
+    #     jpg_list += temp_jpg
+    #
+    # for jpg in jpg_list:
+    #     cv2.imwrite(os.path.join(jpg_path, jpg.split("\\")[-1]), cv2.imread(jpg, 1))
+

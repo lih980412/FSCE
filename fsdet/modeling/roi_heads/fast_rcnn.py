@@ -217,11 +217,14 @@ class FastRCNNOutputs(object):
         smoothing = 0.1
         confidence = 1 - smoothing
 
+        #logprobs = F.log_softmax(torch.maximum(self.pred_class_logits, torch.tensor(1e-300)), dim=-1)
         logprobs = F.log_softmax(self.pred_class_logits, dim=-1)
         nll_loss = -logprobs.gather(dim=-1, index=self.gt_classes.unsqueeze(1))
         nll_loss = nll_loss.squeeze(1)
         smooth_loss = -logprobs.mean(dim=-1)
         loss = confidence * nll_loss + smoothing * smooth_loss
+        if loss.mean() >= 3000:
+            return torch.tensor(0, device="cuda:0")
         return loss.mean()
 
     def diou_loss(self, image=None):
@@ -370,6 +373,7 @@ class FastRCNNOutputs(object):
             list[Tensor]: same as fast_rcnn_inference.
         """
         boxes = self.predict_boxes()
+        # boxes = self.proposals
         scores = self.predict_probs()
         image_shapes = self.image_shapes
 
@@ -439,12 +443,12 @@ class FastRCNNMoCoOutputs(FastRCNNOutputs):
         if torch.any(self.moco_labels == -1):
             return 0
 
-        moco_logits = self.moco_logits
+        moco_logits = self.moco_logits          # similarity
         moco_labels = self.moco_labels
         batch_labels = self.gt_classes # shape = [None]
 
         match_mask = torch.eq(batch_labels, moco_labels.reshape(-1, 1)).T.float().cuda() # [None, S]
-        num_matches = match_mask.sum(dim=1)
+        num_matches = match_mask.sum(dim=1)                         # logits_mask
         # TODO, currently if there is no match, no loss，看能不能改进
         keep = num_matches != 0
         match_mask = match_mask[keep]
@@ -518,8 +522,8 @@ class FastRCNNContrastOutputs(FastRCNNOutputs):
             return {
                 'loss_cls': self.softmax_cross_entropy_loss_label_smooth(),
                 # 'loss_cls': self.softmax_cross_entropy_loss(),
-                # 'loss_box_reg': self.box_reg_weight * self.smooth_l1_loss(),
-                'loss_box_reg': self.box_reg_weight * self.diou_loss(),
+                'loss_box_reg': self.box_reg_weight * self.smooth_l1_loss(),
+                # 'loss_box_reg': self.box_reg_weight * self.diou_loss(),
                 'loss_contrast': self.contrast_loss_weight * self.supervised_contrastive_loss(),
             }
 
@@ -692,6 +696,7 @@ class FastRCNNOutputLayers(nn.Module):
         nn.init.normal_(self.bbox_pred.weight, std=0.001)
         for l in [self.cls_score, self.bbox_pred]:
             nn.init.constant_(l.bias, 0)
+            # l.to("cuda:0")
 
     def forward(self, x):
         if x.dim() > 2:
@@ -699,6 +704,52 @@ class FastRCNNOutputLayers(nn.Module):
         scores = self.cls_score(x)      # 1024*1024 -> 1024*6
         proposal_deltas = self.bbox_pred(x)
         return scores, proposal_deltas
+
+
+@ROI_HEADS_OUTPUT_REGISTRY.register()
+class MYFastRCNNOutputLayers(nn.Module):
+    """
+    Two linear layers for predicting Fast R-CNN outputs:
+      (1) proposal-to-detection box regression deltas
+      (2) classification scores
+    """
+
+    def __init__(
+        self, cfg, input_size, num_classes, cls_agnostic_bbox_reg, box_dim=4
+    ):
+        """
+        Args:
+            cfg: config
+            input_size (int): channels, or (channels, height, width)
+            num_classes (int): number of foreground classes
+            cls_agnostic_bbox_reg (bool): whether to use class agnostic for bbox regression
+            box_dim (int): the dimension of bounding boxes.
+                Example box dimensions: 4 for regular XYXY boxes and 5 for rotated XYWHA boxes
+        """
+        super(MYFastRCNNOutputLayers, self).__init__()
+
+        if not isinstance(input_size, int):
+            input_size = np.prod(input_size)
+
+        # The prediction layer for num_classes foreground classes and one
+        # background class
+        # (hence + 1)
+        self.cls_score = nn.Linear(input_size, num_classes + 1)
+        # num_bbox_reg_classes = 1 if cls_agnostic_bbox_reg else num_classes
+        # self.bbox_pred = nn.Linear(input_size, num_bbox_reg_classes * box_dim)
+
+        nn.init.normal_(self.cls_score.weight, std=0.01)
+        # nn.init.normal_(self.bbox_pred.weight, std=0.001)
+        nn.init.constant_(self.cls_score.bias, 0)
+        # for l in [self.cls_score, self.bbox_pred]:
+        #     nn.init.constant_(l.bias, 0)
+
+    def forward(self, x):
+        if x.dim() > 2:
+            x = torch.flatten(x, start_dim=1)
+        scores = self.cls_score(x)      # 1024*1024 -> 1024*6
+        # proposal_deltas = self.bbox_pred(x)
+        return scores
 
 
 @ROI_HEADS_OUTPUT_REGISTRY.register()
@@ -800,6 +851,9 @@ class FastRCNNDoubleHeadCosMarginLayers(CosineSimOutputLayers):
         self.m = cfg.MODEL.ROI_HEADS.COSINE_MARGIN
         nn.init.xavier_uniform_(self.cls_score.weight)
 
+        num_bbox_reg_classes = 1 if cls_agnostic_bbox_reg else num_classes
+        self.bbox_pred = nn.Linear(input_size // 4, num_bbox_reg_classes * box_dim)
+
     def forward(self, box_loc_feat, box_cls_feat, cls_label, is_training):
         box_cls_feat_norm = F.normalize(box_cls_feat)
         self.cls_score.weight.data = F.normalize(self.cls_score.weight.data)
@@ -812,5 +866,74 @@ class FastRCNNDoubleHeadCosMarginLayers(CosineSimOutputLayers):
             scores *= self.scale
         else:
             scores = cosine * self.scale
+        proposal_deltas = self.bbox_pred(box_loc_feat)
+        return scores, proposal_deltas
+
+
+import math
+@ROI_HEADS_OUTPUT_REGISTRY.register()
+class FastRCNNDoubleHeadArc_MarginProduct_subcenter(nn.Module):
+    def __init__(self, cfg, input_size, num_classes, cls_agnostic_bbox_reg, box_dim=4, k=3):
+
+        super(FastRCNNDoubleHeadArc_MarginProduct_subcenter, self).__init__()
+        if not isinstance(input_size, int):
+            input_size = np.prod(input_size)
+        self.num_classes = num_classes
+        self.k = k
+
+        self.m = torch.tensor(cfg.MODEL.ROI_HEADS.COSINE_MARGIN, device="cuda:0")
+
+
+        self.cls_score = nn.Linear(input_size, (self.num_classes + 1) * self.k, bias=False)
+
+
+        self.scale = cfg.MODEL.ROI_HEADS.COSINE_SCALE
+        if self.scale == -1:
+            # learnable global scaling factor
+            self.scale = nn.Parameter(torch.ones(1) * 20.0)
+        num_bbox_reg_classes = 1 if cls_agnostic_bbox_reg else num_classes
+        self.bbox_pred = nn.Linear(input_size // 4, num_bbox_reg_classes * box_dim)
+
+        # nn.init.xavier_uniform_(self.cls_score.weight)
+        nn.init.normal_(self.cls_score.weight, std=0.01)
+        nn.init.normal_(self.bbox_pred.weight, std=0.001)
+        for l in [self.bbox_pred]:
+            nn.init.constant_(l.bias, 0)
+
+
+
+    def forward(self, box_loc_feat, box_cls_feat, cls_label, is_training):
+        # subcenter
+        box_cls_feat_norm = F.normalize(box_cls_feat)
+        self.cls_score.weight.data = F.normalize(self.cls_score.weight.data)
+        cosine_all = self.cls_score(box_cls_feat_norm)
+        cosine_all = cosine_all.view(-1, (self.num_classes + 1), self.k)
+        cosine, _ = torch.max(cosine_all, dim=2)
+
+        # Arc_Margin
+        if is_training:
+            cos_m = torch.cos(self.m)
+            sin_m = torch.sin(self.m)
+            th = torch.cos(math.pi - self.m)
+            mm = torch.sin(math.pi - self.m) * self.m
+
+            labels = torch.zeros_like(cosine, device=box_cls_feat.device)
+            labels.scatter_(1, cls_label.view(-1, 1).long(), 1)
+
+            sine = torch.sqrt(1.0 - cosine * cosine)
+            phi = cosine * cos_m.view(-1, 1) - sine * sin_m.view(-1, 1)
+            phi = torch.where(cosine > th.view(-1, 1), phi, cosine - mm.view(-1, 1))
+            scores = (labels * phi) + ((1.0 - labels) * cosine)
+            scores *= self.scale
+
+            # phi = cosine - self.m
+            # one_hot = torch.zeros_like(cosine, device=box_cls_feat.device)
+            # one_hot.scatter_(1, cls_label.view(-1,1).long(), 1)
+            # scores = (one_hot * phi) + ((1.0 - one_hot) * cosine)
+            # scores *= self.scale
+        else:
+            scores = cosine * self.scale
+
+        # boxes
         proposal_deltas = self.bbox_pred(box_loc_feat)
         return scores, proposal_deltas

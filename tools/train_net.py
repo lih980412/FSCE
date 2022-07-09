@@ -35,7 +35,12 @@ from fsdet.evaluation import (
     verify_results,
     NewDatasetEvaluator,
     NewDatasetEvaluator2,
+    NewDatasetEvaluator3,
+    NewDatasetEvaluator4,
+    NewDatasetEvaluator5,
+    NewDatasetEvaluator6
 )
+
 
 # from fsdet.data.dataset_mapper import AlbumentationMapper
 
@@ -65,6 +70,14 @@ class Trainer(DefaultTrainer):
             evaluator_list.append(NewDatasetEvaluator(dataset_name, cfg, True, output_folder))
         if evaluator_type == "mydataset2":
             evaluator_list.append(NewDatasetEvaluator2(dataset_name, cfg, True, output_folder))
+        if evaluator_type == "mydataset3":
+            evaluator_list.append(NewDatasetEvaluator3(dataset_name, cfg, True, output_folder))
+        if evaluator_type == "mydataset4":
+            evaluator_list.append(NewDatasetEvaluator4(dataset_name, cfg, True, output_folder))
+        if evaluator_type == "mydataset5":
+            evaluator_list.append(NewDatasetEvaluator5(dataset_name, cfg, True, output_folder))
+        if evaluator_type == "mydataset6":
+            evaluator_list.append(NewDatasetEvaluator6(dataset_name, cfg, True, output_folder))
         if evaluator_type == "coco":
             # coco
             evaluator_list.append(COCOEvaluator(dataset_name, cfg, True, output_folder))
@@ -89,16 +102,17 @@ class Trainer(DefaultTrainer):
         #     mapper = AlbumentationMapper(cfg, is_train=True)
         return build_detection_train_loader(cfg, aux, mapper=mapper)
 
+
 def setup(args):
     """
     Create configs and perform basic setups.
     """
-    cfg = get_cfg()                         # 获取默认cfg
-    cfg.merge_from_file(args.config_file)   # 将.yml的参数覆盖到默认cfg中
-    cfg.merge_from_list(args.opts)          # 将命令行的参数覆盖到上述cfg中
-    cfg.freeze()                            # 使cfg不可变
+    cfg = get_cfg()  # 获取默认cfg
+    cfg.merge_from_file(args.config_file)  # 将.yml的参数覆盖到默认cfg中
+    cfg.merge_from_list(args.opts)  # 将命令行的参数覆盖到上述cfg中
+    cfg.freeze()  # 使cfg不可变
     set_global_cfg(cfg)
-    default_setup(cfg, args)                # 输出cfg相关信息
+    default_setup(cfg, args)  # 输出cfg相关信息
     return cfg
 
 
@@ -122,7 +136,6 @@ def main(args):
     trainer = Trainer(cfg)
     trainer.resume_or_load(resume=args.resume)
     return trainer.train()
-
 
 
 if __name__ == "__main__":

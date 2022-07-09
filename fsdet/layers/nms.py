@@ -4,9 +4,55 @@
 import torch
 from torchvision.ops import boxes as box_ops
 from torchvision.ops import nms  # BC-compat
+from torchvision.ops import box_iou
 
 
-def batched_nms(boxes, scores, idxs, iou_threshold):
+def soft_nms(boxes, scores, iou_threshold=0.7, soft_threshold=0.01, weight_method=2, sigma=0.5):
+    """
+    :param boxes: [N, 4]， 此处传进来的框，是经过筛选（选取的得分TopK）之后的
+    :param scores: [N]
+    :param iou_threshold: 0.7
+    :param soft_threshold soft nms 过滤掉得分太低的框 （手动设置）
+    :param weight_method 权重方法 1. 线性 2. 高斯
+    :return:
+    """
+    keep = []
+    idxs = scores.argsort()
+    while idxs.numel() > 0:  # 循环直到null； numel()： 数组元素个数
+        # 由于scores得分会改变，所以每次都要重新排序，获取得分最大值
+        idxs = scores.argsort()  # 评分排序
+        if idxs.size(0) == 1:  # 就剩余一个框了；
+            keep.append(idxs[-1])
+            break
+        keep_len = len(keep)
+        max_score_index = idxs[-(keep_len + 1)]
+        max_score_box = boxes[max_score_index][None, :]  # [1, 4]
+        idxs = idxs[:-(keep_len + 1)]
+        other_boxes = boxes[idxs]  # [?, 4]
+        keep.append(max_score_index)  # 位置不能边
+        ious = box_iou(max_score_box, other_boxes)  # 一个框和其余框比较 1XM
+        # Soft NMS 处理， 和 得分最大框 IOU大于阈值的框， 进行得分抑制
+        if weight_method == 1:   # 线性抑制  # 整个过程 只修改分数
+            ge_threshod_bool = ious[0] >= iou_threshold
+            ge_threshod_idxs = idxs[ge_threshod_bool]
+            scores[ge_threshod_idxs] *= (1. - ious[0][ge_threshod_bool])  # 小于IoU阈值的不变
+            # idxs = idxs[scores[idxs] >= soft_threshold]  # 小于soft_threshold删除， 经过抑制后 阈值会越来越小；
+        elif weight_method == 2:  # 高斯抑制， 不管大不大于阈值，都计算权重
+            scores[idxs] *= torch.exp(-(ious[0] * ious[0]) / sigma) # 权重(0, 1]
+            # idxs = idxs[scores[idxs] >= soft_threshold]
+        # else:  # NMS
+        #     idxs = idxs[ious[0] <= iou_threshold]
+
+    # keep = scores[scores > soft_threshold].int()
+    keep = idxs.new(keep)  # Tensor
+    keep = keep[scores[keep] > soft_threshold]  # 最后处理阈值
+    return keep
+    # boxes = boxes[keep]  # 保留下来的框
+    # scores = scores[keep]  # soft nms抑制后得分
+    # return boxes, scores
+
+
+def batched_nms(boxes, scores, idxs, iou_threshold, soft=False):
     """
     Same as torchvision.ops.boxes.batched_nms, but safer.
     """
@@ -19,7 +65,10 @@ def batched_nms(boxes, scores, idxs, iou_threshold):
     result_mask = scores.new_zeros(scores.size(), dtype=torch.bool)
     for id in torch.unique(idxs).cpu().tolist():
         mask = (idxs == id).nonzero().view(-1)
-        keep = nms(boxes[mask], scores[mask], iou_threshold)
+        if soft:
+            keep = soft_nms(boxes[mask], scores[mask], iou_threshold)
+        else:
+            keep = nms(boxes[mask], scores[mask], iou_threshold)
         result_mask[mask[keep]] = True
     keep = result_mask.nonzero().view(-1)
     keep = keep[scores[keep].argsort(descending=True)]

@@ -73,7 +73,7 @@ def parse_args():
 #                     json.dump(new_data, f)
 '''my dataset'''
 def generate_seeds(args):
-    data_path = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_split\annotations\instances_train.json'
+    data_path = r'D:\UserD\Li\FSCE-1\datasets\my_dataset_555\annotations\instances_train.json'
     data = json.load(open(data_path))
 
     new_all_cats = []
@@ -102,7 +102,7 @@ def generate_seeds(args):
 
             sample_shots = []
             sample_imgs = []
-            for shots in [10, 20, 50]:
+            for shots in [10, 20]:
                 while True:
                     imgs = random.sample(list(img_ids.keys()), shots)
                     for img in imgs:

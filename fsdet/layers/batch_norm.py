@@ -40,6 +40,7 @@ class FrozenBatchNorm2d(nn.Module):
         self.register_buffer("bias", torch.zeros(num_features))
         self.register_buffer("running_mean", torch.zeros(num_features))
         self.register_buffer("running_var", torch.ones(num_features) - eps)
+        self.momentum = 1.0
 
     def forward(self, x):
         scale = self.weight * (self.running_var + self.eps).rsqrt()

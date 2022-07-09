@@ -9,15 +9,19 @@ import torch
 from torch import nn
 import torch.utils.model_zoo as model_zoo
 from torch.utils.model_zoo import load_url as load_state_dict_from_url
+
+import fsdet.layers
 from .backbone import Backbone
 from .build import BACKBONE_REGISTRY
-from fsdet.layers import  ShapeSpec
+from fsdet.layers import ShapeSpec
 
+from fsdet.layers.conv_layer_ws import Conv2d_withWS
 
 __all__ = []
 
-
 BatchNorm = nn.BatchNorm2d
+GroupNorm = nn.GroupNorm
+FrozenBatchNorm2d = fsdet.layers.FrozenBatchNorm2d
 
 WEB_ROOT = 'http://dl.yf.io/dla/models'
 
@@ -42,17 +46,20 @@ def conv3x3(in_planes, out_planes, stride=1):
 
 
 class BasicBlock(nn.Module):
-    def __init__(self, inplanes, planes, stride=1, dilation=1):
+    def __init__(self, inplanes, planes, stride=1, dilation=1, Norm=None):
         super(BasicBlock, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3,
                                stride=stride, padding=dilation,
                                bias=False, dilation=dilation)
-        self.bn1 = BatchNorm(planes)
+        # self.bn1 = BatchNorm(planes)
+        self.bn1 = Norm(planes)
         self.relu = nn.ReLU(inplace=True)
+
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3,
                                stride=1, padding=dilation,
                                bias=False, dilation=dilation)
-        self.bn2 = BatchNorm(planes)
+        # self.bn2 = BatchNorm(planes)
+        self.bn2 = Norm(planes)
         self.stride = stride
 
     def forward(self, x, residual=None):
@@ -75,20 +82,34 @@ class BasicBlock(nn.Module):
 class Bottleneck(nn.Module):
     expansion = 2
 
-    def __init__(self, inplanes, planes, stride=1, dilation=1):
+    def __init__(self, inplanes, planes, stride=1, dilation=1, Norm=None, WS=False):
         super(Bottleneck, self).__init__()
         expansion = Bottleneck.expansion
         bottle_planes = planes // expansion
         self.conv1 = nn.Conv2d(inplanes, bottle_planes,
+                               kernel_size=1, bias=False) if not WS else \
+                        Conv2d_withWS(inplanes, bottle_planes,
                                kernel_size=1, bias=False)
-        self.bn1 = BatchNorm(bottle_planes)
+        # self.bn1 = BatchNorm(bottle_planes)
+        self.bn1 = Norm(bottle_planes)
+
         self.conv2 = nn.Conv2d(bottle_planes, bottle_planes, kernel_size=3,
                                stride=stride, padding=dilation,
+                               bias=False, dilation=dilation) if not WS else \
+                        Conv2d_withWS(bottle_planes, bottle_planes, kernel_size=3,
+                               stride=stride, padding=dilation,
                                bias=False, dilation=dilation)
-        self.bn2 = BatchNorm(bottle_planes)
+        # self.bn2 = BatchNorm(bottle_planes)
+        self.bn2 = Norm(bottle_planes)
+
         self.conv3 = nn.Conv2d(bottle_planes, planes,
+                               kernel_size=1, bias=False) if not WS else \
+                        Conv2d_withWS(bottle_planes, planes,
                                kernel_size=1, bias=False)
-        self.bn3 = BatchNorm(planes)
+
+        # self.bn3 = BatchNorm(planes)
+        self.bn3 = Norm(planes)
+
         self.relu = nn.ReLU(inplace=True)
         self.stride = stride
 
@@ -158,12 +179,15 @@ class BottleneckX(nn.Module):
 
 
 class Root(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, residual):
+    def __init__(self, in_channels, out_channels, kernel_size, residual, Norm, WS):
         super(Root, self).__init__()
         self.conv = nn.Conv2d(
             in_channels, out_channels, kernel_size,
-            stride=1, bias=False, padding=(kernel_size - 1) // 2)
-        self.bn = BatchNorm(out_channels)
+            stride=1, bias=False, padding=(kernel_size - 1) // 2) if not WS else \
+                    Conv2d_withWS(in_channels, out_channels, kernel_size, stride=1, bias=False, padding=(kernel_size - 1) // 2)
+
+        # self.bn = BatchNorm(out_channels) if not gn else GroupNorm(out_channels//16, out_channels)
+        self.bn = Norm(out_channels)
         self.relu = nn.ReLU(inplace=True)
         self.residual = residual
 
@@ -181,7 +205,7 @@ class Root(nn.Module):
 class Tree(nn.Module):
     def __init__(self, levels, block, in_channels, out_channels, stride=1,
                  level_root=False, root_dim=0, root_kernel_size=1,
-                 dilation=1, root_residual=False):
+                 dilation=1, root_residual=False, Norm=None, WS=False):
         super(Tree, self).__init__()
         if root_dim == 0:
             root_dim = 2 * out_channels
@@ -189,21 +213,21 @@ class Tree(nn.Module):
             root_dim += in_channels
         if levels == 1:
             self.tree1 = block(in_channels, out_channels, stride,
-                               dilation=dilation)
+                               dilation=dilation, Norm=Norm, WS=WS)
             self.tree2 = block(out_channels, out_channels, 1,
-                               dilation=dilation)
+                               dilation=dilation, Norm=Norm, WS=WS)
         else:
             self.tree1 = Tree(levels - 1, block, in_channels, out_channels,
                               stride, root_dim=0,
                               root_kernel_size=root_kernel_size,
-                              dilation=dilation, root_residual=root_residual)
+                              dilation=dilation, root_residual=root_residual, Norm=Norm, WS=WS)
             self.tree2 = Tree(levels - 1, block, out_channels, out_channels,
                               root_dim=root_dim + out_channels,
                               root_kernel_size=root_kernel_size,
-                              dilation=dilation, root_residual=root_residual)
+                              dilation=dilation, root_residual=root_residual, Norm=Norm, WS=WS)
         if levels == 1:
             self.root = Root(root_dim, out_channels, root_kernel_size,
-                             root_residual)
+                             root_residual, Norm=Norm, WS=WS)
         self.level_root = level_root
         self.root_dim = root_dim
         self.downsample = None
@@ -214,8 +238,10 @@ class Tree(nn.Module):
         if in_channels != out_channels:
             self.project = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels,
+                          kernel_size=1, stride=1, bias=False)
+                    if not WS else Conv2d_withWS(in_channels, out_channels,
                           kernel_size=1, stride=1, bias=False),
-                BatchNorm(out_channels)
+                Norm(out_channels),
             )
 
     def forward(self, x, residual=None, children=None):
@@ -235,7 +261,8 @@ class Tree(nn.Module):
 
 
 class DLA(Backbone):
-    def __init__(self, levels, channels, out_features,input_channels=3,
+    def __init__(self, levels, channels, out_features, input_channels=3,
+                 gn=False, freeze_bn=False, weight_standardization=False,
                  num_classes=1000, pool_size=7,
                  block=BasicBlock,
                  residual_root=False, scale_idx=5):
@@ -248,13 +275,28 @@ class DLA(Backbone):
         self._out_feature_strides = {}
         self._out_feature_channels = {}
 
+        # self.gn = gn
+        # self.precise_bn = precise_bn
+        assert weight_standardization == False or (weight_standardization == True and gn == True), "weight standardization must using with GN"
+        if gn:
+            self.Norm = lambda x: GroupNorm(x // 16, x)
+            self.weight_standardization = weight_standardization
+        elif freeze_bn:
+            self.Norm = lambda x: FrozenBatchNorm2d(x)
+            self.weight_standardization = False
+        else:
+            self.Norm = lambda x: BatchNorm(x)
+            self.weight_standardization = False
+
         # self.return_levels = return_levels
         self.scale_idx = scale_idx
         self.out_channels = channels[self.scale_idx]
         self.base_layer = nn.Sequential(
-            nn.Conv2d(input_channels, channels[0], kernel_size=7, stride=1,
-                      padding=3, bias=False),
-            BatchNorm(channels[0]),
+            nn.Conv2d(input_channels, channels[0], kernel_size=7, stride=1, padding=3, bias=False)
+                if not self.weight_standardization else
+                    Conv2d_withWS(input_channels, channels[0], kernel_size=7, stride=1, padding=3, bias=False),
+            # BatchNorm(channels[0]) if not self.gn else GroupNorm(channels[0]//16, channels[0])
+            self.Norm(channels[0]),
             nn.ReLU(inplace=True))
         self.level0 = self._make_conv_level(
             channels[0], channels[0], levels[0])
@@ -270,28 +312,27 @@ class DLA(Backbone):
         if self.scale_idx >= 2:
             self.level2 = Tree(levels[2], block, channels[1], channels[2], 2,
                                level_root=False,
-                               root_residual=residual_root)
+                               root_residual=residual_root, Norm=self.Norm, WS=self.weight_standardization)
             self._out_feature_channels['level2'] = channels[2]
             self._out_feature_strides['level2'] = 4
 
         if self.scale_idx >= 3:
             self.level3 = Tree(levels[3], block, channels[2], channels[3], 2,
-                               level_root=True, root_residual=residual_root)
+                               level_root=True, root_residual=residual_root, Norm=self.Norm, WS=self.weight_standardization)
             self._out_feature_channels['level3'] = channels[3]
             self._out_feature_strides['level3'] = 8
 
         if self.scale_idx >= 4:
             self.level4 = Tree(levels[4], block, channels[3], channels[4], 2,
-                               level_root=True, root_residual=residual_root)
+                               level_root=True, root_residual=residual_root, Norm=self.Norm, WS=self.weight_standardization)
             self._out_feature_channels['level4'] = channels[4]
             self._out_feature_strides['level4'] = 16
 
         if self.scale_idx >= 5:
             self.level5 = Tree(levels[5], block, channels[4], channels[5], 2,
-                               level_root=True, root_residual=residual_root)
+                               level_root=True, root_residual=residual_root, Norm=self.Norm, WS=self.weight_standardization)
             self._out_feature_channels['level5'] = channels[5]
             self._out_feature_strides['level5'] = 32
-
 
         self.avgpool = nn.AvgPool2d(pool_size)
         self.fc = nn.Conv2d(channels[-1], num_classes, kernel_size=1,
@@ -316,7 +357,8 @@ class DLA(Backbone):
                 nn.MaxPool2d(stride, stride=stride),
                 nn.Conv2d(inplanes, planes,
                           kernel_size=1, stride=1, bias=False),
-                BatchNorm(planes),
+                # BatchNorm(planes),
+                self.Norm(planes),
             )
 
         layers = []
@@ -332,8 +374,13 @@ class DLA(Backbone):
             modules.extend([
                 nn.Conv2d(inplanes, planes, kernel_size=3,
                           stride=stride if i == 0 else 1,
-                          padding=dilation, bias=False, dilation=dilation),
-                BatchNorm(planes),
+                          padding=dilation, bias=False, dilation=dilation)
+                    if not self.weight_standardization else
+                    Conv2d_withWS(inplanes, planes, kernel_size=3,
+                              stride=stride if i == 0 else 1,
+                              padding=dilation, bias=False, dilation=dilation),
+                # BatchNorm(planes) if not self.gn else GroupNorm(planes//16, planes),
+                self.Norm(planes),
                 nn.ReLU(inplace=True)])
             inplanes = planes
         return nn.Sequential(*modules)
@@ -348,12 +395,12 @@ class DLA(Backbone):
         for i in range(self.scale_idx + 1):
             name = 'level{}'.format(i)
             x = getattr(self, name)(x)
-            if aux_x is not None:
-                with torch.no_grad():
-                    if name in self.fuse_layer_name:
-
-                        aux_x = getattr(self, name)(aux_x)
-                        x = x * 0.9 + aux_x * 0.1
+            # if aux_x is not None:
+            #     with torch.no_grad():
+            #         if name in self.fuse_layer_name:
+            #
+            #             aux_x = getattr(self, name)(aux_x)
+            #             x = x * 0.9 + aux_x * 0.1
             if name in self._out_features:
                 y[name] = x
         return y
@@ -421,8 +468,8 @@ def dla60(**kwargs):  # DLA-60
                 [16, 32, 128, 256, 512, 1024],
                 block=Bottleneck, **kwargs)
     # state_dict = load_state_dict_from_url(model_urls['dla60'])
-    # state_dict = torch.load(r"D:\UserD\Li\FSCE-1\checkpoints\mydataset_dla60\dla60.pth")
-    # model.load_state_dict(state_dict)
+    state_dict = torch.load(r"D:\UserD\Li\FSCE-1\checkpoints\mydataset_dla60\dla60.pth")
+    model.load_state_dict(state_dict, strict=False)
     return model
 
 
@@ -474,11 +521,13 @@ def dla169(**kwargs):  # DLA-169
 
 @BACKBONE_REGISTRY.register()
 def build_dla_backbone(cfg, input_shape):
-
     # return levels for backbone with FPN
     args = {
         'input_channels': input_shape.channels,
-        'out_features': cfg.MODEL.DLA.OUT_FEATURES
+        'out_features': cfg.MODEL.DLA.OUT_FEATURES,
+        'gn': cfg.MODEL.GroupNorm,
+        'freeze_bn': cfg.MODEL.FreezeBN,
+        'weight_standardization': cfg.MODEL.WeightStandardization
     }
 
     if cfg.MODEL.DLA.ARCH == 'DLA-34':

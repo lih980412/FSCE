@@ -95,7 +95,7 @@ setup(
     author="BDD",
     url="https://github.com/ucbdrive/few-shot-object-detection",
     description="A repository for few-shot object detection.",
-    packages=find_packages(exclude=("configs", "tests")),
+    packages=find_packages(exclude=("configs", "tests")),       # 通过 setuptools.find_packages 找到当前目录下有哪些包
     package_data={"fsdet.model_zoo": get_model_zoo_configs()},
     python_requires=">=3.6",
     install_requires=[

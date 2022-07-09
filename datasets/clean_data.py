@@ -89,64 +89,64 @@ if __name__ == "__main__":
     #             j += 1
     #             print("remove pic " + str(j))
 
-    jpg_dir = r'F:\Dataset\Weld Defects\work field\JPEGImages'
-    taget_dir = r"D:\UserD\Li\FSCE-1\datasets\my_dataset_workfield\image"
-
-    i = 0
-    j = 0
-    k = 0
-    ID = 0
-    dec_list = ["bar", "round", "icf", "crack", "lop"]
-
-    # 删除没有标注的图片
-    filename = os.listdir(jpg_dir)
-    for file in filename:
-        if file.endswith(".jpg"):
-            name = file.split('.')[0] + ".xml"
-            if not os.path.exists(os.path.join(xml_dir, name)):
-                os.remove(os.path.join(xml_dir, file))
-                j += 1
-                print("remove pic " + str(j))
-
-
-    filename = os.listdir(xml_dir)
-    for file in filename:
-        if file.endswith(".xml"):
-            # 删除无效标注
-            doc = minidom.parse(os.path.join(xml_dir, file))
-            root_node = doc.documentElement
-            if root_node.nodeName != "annotation":
-                os.remove(os.path.join(xml_dir, file))
-                i += 1
-                print("remove ann " + str(i))
-                continue
-            flag = True
-            for idx in range(len(root_node.getElementsByTagName('name'))):
-                filename_node = root_node.getElementsByTagName('name')[idx]
-                if filename_node.childNodes[0].data in dec_list:
-                    flag = False
-                    break
-            if flag is True:
-                os.remove(os.path.join(xml_dir, file))
-                i += 1
-                print("remove other ann " + str(i))
-                continue
-
-            # 删除没有图片的标注以及重命名
-            pic_name = file.split(".")[0] + ".jpg"
-            pic_path = os.path.join(jpg_dir, pic_name)
-            if os.path.exists(pic_path):
-                pic_newname = str(ID).zfill(6) + ".jpg"
-                xml_newname = str(ID).zfill(6) + ".xml"
-                os.rename(os.path.join(jpg_dir, pic_name), os.path.join(jpg_dir, pic_newname))
-                os.rename(os.path.join(xml_dir, file), os.path.join(xml_dir, xml_newname))
-                pic_path = os.path.join(jpg_dir, pic_newname)
-                shutil.copy(pic_path, taget_dir)
-                ID += 1
-            else:
-                k += 1
-                print("remove xml " + str(k))
-                os.remove(os.path.join(xml_dir, file))
+    # jpg_dir = r'F:\Dataset\Weld Defects\work field\JPEGImages'
+    # taget_dir = r"D:\UserD\Li\FSCE-1\datasets\my_dataset_workfield\image"
+    #
+    # i = 0
+    # j = 0
+    # k = 0
+    # ID = 0
+    # dec_list = ["bar", "round", "icf", "crack", "lop"]
+    #
+    # # 删除没有标注的图片
+    # filename = os.listdir(jpg_dir)
+    # for file in filename:
+    #     if file.endswith(".jpg"):
+    #         name = file.split('.')[0] + ".xml"
+    #         if not os.path.exists(os.path.join(xml_dir, name)):
+    #             os.remove(os.path.join(xml_dir, file))
+    #             j += 1
+    #             print("remove pic " + str(j))
+    #
+    #
+    # filename = os.listdir(xml_dir)
+    # for file in filename:
+    #     if file.endswith(".xml"):
+    #         # 删除无效标注
+    #         doc = minidom.parse(os.path.join(xml_dir, file))
+    #         root_node = doc.documentElement
+    #         if root_node.nodeName != "annotation":
+    #             os.remove(os.path.join(xml_dir, file))
+    #             i += 1
+    #             print("remove ann " + str(i))
+    #             continue
+    #         flag = True
+    #         for idx in range(len(root_node.getElementsByTagName('name'))):
+    #             filename_node = root_node.getElementsByTagName('name')[idx]
+    #             if filename_node.childNodes[0].data in dec_list:
+    #                 flag = False
+    #                 break
+    #         if flag is True:
+    #             os.remove(os.path.join(xml_dir, file))
+    #             i += 1
+    #             print("remove other ann " + str(i))
+    #             continue
+    #
+    #         # 删除没有图片的标注以及重命名
+    #         pic_name = file.split(".")[0] + ".jpg"
+    #         pic_path = os.path.join(jpg_dir, pic_name)
+    #         if os.path.exists(pic_path):
+    #             pic_newname = str(ID).zfill(6) + ".jpg"
+    #             xml_newname = str(ID).zfill(6) + ".xml"
+    #             os.rename(os.path.join(jpg_dir, pic_name), os.path.join(jpg_dir, pic_newname))
+    #             os.rename(os.path.join(xml_dir, file), os.path.join(xml_dir, xml_newname))
+    #             pic_path = os.path.join(jpg_dir, pic_newname)
+    #             shutil.copy(pic_path, taget_dir)
+    #             ID += 1
+    #         else:
+    #             k += 1
+    #             print("remove xml " + str(k))
+    #             os.remove(os.path.join(xml_dir, file))
 
 
 
@@ -186,3 +186,16 @@ if __name__ == "__main__":
 #             os.rename(os.path.join(dir, file), os.path.join(dir, file.split(".")[0] + ".png"))
 #
 #     print("rename " + str(count) + " images")
+
+
+
+
+jpg = r"F:\Dataset\ReZha\image"
+xml = r"F:\Dataset\ReZha\annotations"
+files= os.listdir(jpg)
+for file in files:
+    xml_name = file.replace(".jpg", ".xml")
+    xml_path = os.path.join(xml, xml_name)
+    if not os.path.exists(xml_path):
+        os.remove(os.path.join(jpg, file))
+        print(file)

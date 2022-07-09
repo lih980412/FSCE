@@ -83,12 +83,12 @@ class Matcher(object):
 
         # match_quality_matrix is M (gt) x N (predicted)
         # Max over gt elements (dim 0) to find best gt candidate for each prediction
-        matched_vals, matches = match_quality_matrix.max(dim=0)
+        matched_vals, matches = match_quality_matrix.max(dim=0)     # 每个anchor与哪个gt匹配的最好，默认是与第一个gt
 
         match_labels = matches.new_full(matches.size(), 1, dtype=torch.int8)
 
         for (l, low, high) in zip(self.labels, self.thresholds[:-1], self.thresholds[1:]):
-            low_high = (matched_vals >= low) & (matched_vals < high)
+            low_high = (matched_vals >= low) & (matched_vals < high)                        # 每个anchor与gt的IoU来分配标签
             match_labels[low_high] = l
 
         if self.allow_low_quality_matches:
@@ -107,11 +107,11 @@ class Matcher(object):
         Faster R-CNN paper: https://arxiv.org/pdf/1506.01497v3.pdf.
         """
         # For each gt, find the prediction with which it has highest quality
-        highest_quality_foreach_gt, _ = match_quality_matrix.max(dim=1)
+        highest_quality_foreach_gt, _ = match_quality_matrix.max(dim=1)     # 每个gt与哪个anchor匹配的最好，最好的iou值
         # Find the highest quality match available, even if it is low, including ties.
         # Note that the matches qualities must be positive due to the use of
         # `torch.nonzero`.
-        gt_pred_pairs_of_highest_quality = torch.nonzero(
+        gt_pred_pairs_of_highest_quality = torch.nonzero(                   # 输出这些anchor
             match_quality_matrix == highest_quality_foreach_gt[:, None]
         )
         # Example gt_pred_pairs_of_highest_quality:

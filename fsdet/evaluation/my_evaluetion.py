@@ -53,6 +53,11 @@ class NewDatasetEvaluator(DatasetEvaluator):
         # performed using the COCO evaluation server).
         self._do_evaluation = "annotations" in self._coco_api.dataset
 
+        self.plot_pr = cfg.TEST.PLOT_PR.ENABLED
+        self.conf = cfg.TEST.PLOT_PR.PLOT_PR_CONF
+        self.threshold = cfg.TEST.PLOT_PR.PLOT_PR_THRESHOLD
+        self.class_num = cfg.MODEL.ROI_HEADS.NUM_CLASSES
+
     def reset(self):
         self._predictions = []
         self._coco_results = []
@@ -169,13 +174,24 @@ class NewDatasetEvaluator(DatasetEvaluator):
                 else:
                     self._results["bbox"]["AP"] = self._results["bbox"]["bAP"]
         else:
-            coco_eval = (
-                _evaluate_predictions_on_coco(
-                    self._coco_api, self._coco_results, "bbox",
+            if self.plot_pr:
+                coco_eval = (
+                    _evaluate_predictions_on_coco_and_plot(
+                        self._coco_api, self._coco_results, "bbox", output_dir=self._output_dir,
+                        class_number=self.class_num, conf=self.conf, threshold=self.threshold,
+                        plot=self.plot_pr, class_name=self._metadata.get("thing_classes")
+                    )
+                    if len(self._coco_results) > 0
+                    else None  # cocoapi does not handle empty results very well
                 )
-                if len(self._coco_results) > 0
-                else None  # cocoapi does not handle empty results very well
-            )
+            else:
+                coco_eval = (
+                    _evaluate_predictions_on_coco(
+                        self._coco_api, self._coco_results, "bbox",
+                    )
+                    if len(self._coco_results) > 0
+                    else None  # cocoapi does not handle empty results very well
+                )
             res = self._derive_coco_results(
                 coco_eval, "bbox",
                 class_names=self._metadata.get("thing_classes")
@@ -1259,6 +1275,11 @@ class NewDatasetEvaluator6(DatasetEvaluator):
         # performed using the COCO evaluation server).
         self._do_evaluation = "annotations" in self._coco_api.dataset
 
+        self.plot_pr = cfg.TEST.PLOT_PR.ENABLED
+        self.conf = cfg.TEST.PLOT_PR.PLOT_PR_CONF
+        self.threshold = cfg.TEST.PLOT_PR.PLOT_PR_THRESHOLD
+        self.class_num = cfg.MODEL.ROI_HEADS.NUM_CLASSES
+
     def reset(self):
         self._predictions = []
         self._coco_results = []
@@ -1376,8 +1397,10 @@ class NewDatasetEvaluator6(DatasetEvaluator):
                     self._results["bbox"]["AP"] = self._results["bbox"]["bAP"]
         else:
             # coco_eval = (
-            #     _evaluate_predictions_on_coco(
-            #         self._coco_api, self._coco_results, "bbox",
+            #     _evaluate_predictions_on_coco_and_plot(
+            #         self._coco_api, self._coco_results, "bbox", output_dir=self._output_dir,
+            #                         class_number=self.class_num, conf=self.conf, threshold=self.threshold,
+            #                         plot=self.plot_pr, class_name=self._metadata.get("thing_classes")
             #     )
             #     if len(self._coco_results) > 0
             #     else None  # cocoapi does not handle empty results very well
@@ -1385,7 +1408,9 @@ class NewDatasetEvaluator6(DatasetEvaluator):
             '重写了CoCo的接口'
             coco_eval = (
                 my_evaluate_predictions_on_coco(
-                    self._coco_api, self._coco_results, "bbox",
+                    self._coco_api, self._coco_results, "bbox", output_dir=self._output_dir,
+                        class_number=self.class_num, conf=self.conf, threshold=self.threshold,
+                        plot=self.plot_pr, class_name=self._metadata.get("thing_classes")
                 )
                 if len(self._coco_results) > 0
                 else None  # cocoapi does not handle empty results very well
@@ -1532,14 +1557,117 @@ def _evaluate_predictions_on_coco(coco_gt, coco_results, iou_type, catIds=None):
     return coco_eval
 
 
-from .my_cocoeval import MyCOCOeval
-def my_evaluate_predictions_on_coco(coco_gt, coco_results, iou_type, catIds=None):
+def _evaluate_predictions_on_coco_and_plot(coco_gt, coco_results, iou_type, catIds=None, output_dir="", class_number=0,
+                                           conf=0.5, threshold=0.5, plot=False, class_name=()):
     """
     Evaluate the coco results using COCOEval API.
     """
     assert len(coco_results) > 0
 
     coco_dt = coco_gt.loadRes(coco_results)
+
+    # https://blog.csdn.net/weixin_42899627/article/details/120578787
+    if plot:
+        from .confusion_matrix import ConfusionMatrix, xywh2xyxy, process_batch, ap_per_class
+        C_M = ConfusionMatrix(number_class=class_number, conf=conf, iou_thres=threshold)
+        stats = []
+        for i, _ in coco_gt.imgs.items():
+
+            # for i in range(len(coco_gt.imgs)):  # 460张图
+            bbox_gt = np.array([y['bbox'] for y in coco_gt.imgToAnns[i]])
+            class_gt = np.array([[y['category_id'] - 1] for y in coco_gt.imgToAnns[i]])
+            labels = np.hstack((class_gt, bbox_gt))
+
+            bbox_dt = np.array([y['bbox'] for y in coco_dt.imgToAnns[i]])
+            conf_dt = np.array([[y['score']] for y in coco_dt.imgToAnns[i]])
+            class_dt = np.array([[y['category_id'] - 1] for y in coco_dt.imgToAnns[i]])
+            predictions = np.hstack((np.hstack((bbox_dt, conf_dt)), class_dt))
+
+            if len(predictions) == 0:
+                continue
+
+            C_M.process_batch(predictions, labels)
+
+            '''PR等曲线'''
+            detects = torch.tensor(xywh2xyxy(predictions))
+            labs = torch.tensor(np.hstack((labels[:, 0][:, None], xywh2xyxy(labels[:, 1:]))))
+            iouv = torch.linspace(0.5, 0.95, 10)  # iou vector for mAP@0.5:0.95
+            correct = process_batch(detects, labs, iouv)
+            tcls = labs[:, 0].tolist()  # target class
+            stats.append((correct.cpu(), detects[:, 4].cpu(), detects[:, 5].cpu(), tcls))
+
+        C_M.print()
+
+        plot_dir = output_dir
+
+        names = {k: v for k, v in enumerate(class_name)}
+        stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
+        if len(stats) and stats[0].any():
+            p, r, ap, f1, ap_class = ap_per_class(*stats, plot=True, save_dir=plot_dir, names=names)
+        C_M.plot(save_dir=plot_dir + 'confusion_matrix_rec.png', names=class_name, rec_or_pred=0)
+        C_M.plot(save_dir=plot_dir + 'confusion_matrix_pred.png', names=class_name, rec_or_pred=1)
+
+    coco_eval = COCOeval(coco_gt, coco_dt, iou_type)
+    if catIds is not None:
+        coco_eval.params.catIds = catIds
+    coco_eval.evaluate()
+    coco_eval.accumulate()
+    coco_eval.summarize()
+
+    return coco_eval
+
+
+from .my_cocoeval import MyCOCOeval
+def my_evaluate_predictions_on_coco(coco_gt, coco_results, iou_type, catIds=None, output_dir="", class_number=0,
+                                           conf=0.5, threshold=0.5, plot=False, class_name=()):
+    """
+    Evaluate the coco results using COCOEval API.
+    """
+    assert len(coco_results) > 0
+
+    coco_dt = coco_gt.loadRes(coco_results)
+    if plot:
+        from .confusion_matrix import ConfusionMatrix, xywh2xyxy, process_batch, ap_per_class
+        C_M = ConfusionMatrix(number_class=class_number, conf=conf, iou_thres=threshold)
+        stats = []
+        for i, _ in coco_gt.imgs.items():
+            # for i in range(len(coco_gt.imgs)):  # 460张图
+            bbox_gt = np.array([y['bbox'] for y in coco_gt.imgToAnns[i]])
+            class_gt = np.array([[y['category_id'] - 1] for y in coco_gt.imgToAnns[i]])
+            labels = np.hstack((class_gt, bbox_gt))
+            if len(class_gt) == 0:
+                continue
+
+
+            bbox_dt = np.array([y['bbox'] for y in coco_dt.imgToAnns[i]])
+            conf_dt = np.array([[y['score']] for y in coco_dt.imgToAnns[i]])
+            class_dt = np.array([[y['category_id'] - 1] for y in coco_dt.imgToAnns[i]])
+            predictions = np.hstack((np.hstack((bbox_dt, conf_dt)), class_dt))
+
+            C_M.process_batch(predictions, labels)
+
+            '''PR等曲线'''
+            detects = torch.tensor(xywh2xyxy(predictions))
+            labs = torch.tensor(np.hstack((labels[:, 0][:, None], xywh2xyxy(labels[:, 1:]))))
+            iouv = torch.linspace(0.5, 0.95, 10)  # iou vector for mAP@0.5:0.95
+            # iouv = np.linspace(.3, 0.95, int(np.round((0.95 - .3) / .05)) + 1, endpoint=True)
+            correct = process_batch(detects, labs, iouv)
+            tcls = labs[:, 0].tolist()  # target class
+            stats.append((correct.cpu(), detects[:, 4].cpu(), detects[:, 5].cpu(), tcls))
+
+        C_M.print()
+
+        plot_dir = output_dir
+
+        names = {k: v for k, v in enumerate(class_name)}
+        stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
+        if len(stats) and stats[0].any():
+            p, r, ap, f1, ap_class = ap_per_class(*stats, plot=True, save_dir=plot_dir, names=names)
+        C_M.plot(normalize=False, save_dir=plot_dir + 'confusion_matrix_rec.png', names=["targrt"], rec_or_pred=0)
+        C_M.plot(normalize=False, save_dir=plot_dir + 'confusion_matrix_pred.png', names=["targrt"], rec_or_pred=1)
+
+
+
     coco_eval = MyCOCOeval(coco_gt, coco_dt, iou_type)
     if catIds is not None:
         coco_eval.params.catIds = catIds

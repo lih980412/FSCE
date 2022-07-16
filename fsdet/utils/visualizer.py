@@ -177,7 +177,7 @@ class Visualizer:
         )
         self._instance_mode = instance_mode
 
-    def draw_instance_predictions(self, predictions):
+    def draw_instance_predictions(self, predictions, threshold=0):
         """
         Draw instance-level prediction results on an image.
 
@@ -190,7 +190,11 @@ class Visualizer:
             output (VisImage): image object with visualizations.
         """
         boxes = predictions.pred_boxes if predictions.has("pred_boxes") else None
-        scores = predictions.scores if predictions.has("scores") else None
+        if threshold != 0:
+            scores = predictions.scores if predictions.has("scores") else None
+            scores = scores[scores >= threshold]
+        else:
+            scores = predictions.scores if predictions.has("scores") else None
         classes = predictions.pred_classes if predictions.has("pred_classes") else None
         labels = _create_text_labels(classes, scores, self.metadata.get("thing_classes", None))
 

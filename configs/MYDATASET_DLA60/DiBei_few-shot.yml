@@ -4,16 +4,15 @@ MODEL:
   WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/moli_dla60/Baseline/model_final.pth"   # moli
 #  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline/Baseline_MoreThan555/SIZES+RATIOS_72.431/model_72.431.pth"   # dipian
 #  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/coco/model_final.pth"             # coco
-#  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/DiBei_dla60/22_05_27_Baseline_moli_2x_rpnCIoU/model_0014999.pth"
+#  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/DiBei_dla60/22_06_03_FSCE_cut_moli_BiFPN_GN_2x_rpnCIoU/model_final.pth"
 
   IMG_TOHALF: False
 #  PIXEL_MEAN: [60., 60., 60.]
   MASK_ON: False
-  GroupNorm: True
+  GroupNorm: False
   WeightStandardization: False  # using with GN, https://github.com/joe-siyuan-qiao/WeightStandardization
 #  PreciseBN: True    equals by cfg.TEST.PRECISE_BN.ENABLED
   FreezeBN: False
-
 
   DLA:
     ARCH: "DLA-60"
@@ -30,6 +29,8 @@ MODEL:
     - level3
     - level4
     - level5
+    DEFORM_CONV: False
+    DEFORM_MODULATED: False
 
 
 #  META_ARCHITECTURE: MyRCNN
@@ -72,7 +73,8 @@ MODEL:
     DIM_IN: 256
     FEAT_DIM: 128
     OUT_DIM: 128
-    TRAIN_AUX_WHICH_P: "p2"
+#    TRAIN_AUX_WHICH_P: "p2"
+    CROSS_ENTROPY: True
 
 #  ROI_HEADS:
 #    NAME: DoubleHeadROIHeads
@@ -228,7 +230,7 @@ INPUT:
 
   CROP:
     ENABLED: False
-OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/DiBei_dla60/22_06_03_Baseline_moli_GN_rpnCIoU"
+OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/DiBei_dla60/22_06_03_FSCE_cut_moli_BiFPN_GN_2x_rpnCIoU/0.3_0.3"
 #OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Few-Shot/Baseline/5way10shot"
 #OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline_555/AGG/Fuse_firstTwo"
 #OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline_555/RELATION_TWO+LABEL_SMOOTH+AGG+FREEZE_BACKBONE"
@@ -239,4 +241,8 @@ TEST:
     ENABLED: False
     DURING_TRAIN: 1000   # the period this hook is run, or 0 to not run during training. The hook will always run in the end of training.
     NUM_ITER: 100   # number of iterations used to compute the precise statistics.
-  EVAL_PERIOD: 5000
+  EVAL_PERIOD: 1
+  PLOT_PR:
+    ENABLED: False
+    PLOT_PR_CONF: 0.3
+    PLOT_PR_THRESHOLD: 0.3

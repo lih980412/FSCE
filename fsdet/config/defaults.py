@@ -530,9 +530,6 @@ _C.TEST.EVAL_PERIOD = 0
 # based on the limit established for the COCO dataset).
 _C.TEST.DETECTIONS_PER_IMAGE = 100
 
-_C.TEST.PRECISE_BN = CN({"ENABLED": False})
-_C.TEST.PRECISE_BN.DURING_TRAIN = 200
-_C.TEST.PRECISE_BN.NUM_ITER = 200
 
 # ---------------------------------------------------------------------------- #
 # Specific test options from Unused parameters in Detectron2
@@ -732,6 +729,20 @@ _C.MODEL.PreciseBN = False
 _C.MODEL.FreezeBN = False
 
 
+_C.MODEL.FPN.DEFORM_CONV = False
+_C.MODEL.FPN.DEFORM_MODULATED = False
+
+
+_C.TEST.PRECISE_BN = CN({"ENABLED": False})
+_C.TEST.PRECISE_BN.DURING_TRAIN = 200
+_C.TEST.PRECISE_BN.NUM_ITER = 200
+_C.TEST.PLOT_PR = CN({"ENABLED": False})
+_C.TEST.PLOT_PR.PLOT_PR_CONF = 0.5
+_C.TEST.PLOT_PR.PLOT_PR_THRESHOLD = 0.5
+
+
+
+
 
 _C.DATASETS.TRAIN_AUX = ()
 
@@ -742,3 +753,6 @@ _C.MODEL.ROI_HEADS.DIM_IN = 256
 _C.MODEL.ROI_HEADS.FEAT_DIM = 128
 _C.MODEL.ROI_HEADS.OUT_DIM = 64
 _C.MODEL.ROI_HEADS.CROSS_ENTROPY = False
+_C.MODEL.ROI_HEADS.IOU_THRESHOLD = 0.75
+_C.MODEL.ROI_HEADS.TEMPERATURE = 0.5
+

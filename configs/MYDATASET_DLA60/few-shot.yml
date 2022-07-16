@@ -2,12 +2,14 @@ _BASE_: "../Base-RCNN-FPN.yaml"
 SEED: 11234
 MODEL:
   WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/coco/model_final.pth"
+#  WEIGHTS: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Few-Shot/FUSE/TEST_MLP_128128_temp0.5/model_final.pth"
 #  PIXEL_MEAN: [60., 60., 60.]
 
   IMG_TOHALF: False
 #  PIXEL_MEAN: [60., 60., 60.]
   MASK_ON: False
   GroupNorm: False
+  WeightStandardization: False  # using with GN, https://github.com/joe-siyuan-qiao/WeightStandardization
 #  PreciseBN: True    equals cfg.TEST.PRECISE_BN.ENABLED
   FreezeBN: False
 
@@ -26,7 +28,8 @@ MODEL:
     - level3
     - level4
     - level5
-
+    DEFORM_CONV: False
+    DEFORM_MODULATED: False
 
 
 #  META_ARCHITECTURE: MyRCNN
@@ -69,8 +72,10 @@ MODEL:
     DIM_IN: 256
     FEAT_DIM: 128
     OUT_DIM: 128
-    TRAIN_AUX_WHICH_P: "p2"
+#    TRAIN_AUX_WHICH_P: "p2"
     CROSS_ENTROPY: True
+    IOU_THRESHOLD: 0.75
+    TEMPERATURE: 0.5
 
 #  ROI_HEADS:
 #    NAME: DoubleHeadROIHeads
@@ -202,7 +207,7 @@ INPUT:
   CROP:
     ENABLED: False
 
-OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Few-Shot/FUSE/TEST_MLP_128128_temp0.2"
+OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Few-Shot/FUSE/TEST1_Origin_Contrast"
 #OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Few-Shot/Baseline/5way10shot"
 #OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline_555/AGG/Fuse_firstTwo"
 #OUTPUT_DIR: "D:/UserD/Li/FSCE-1/checkpoints/mydataset_dla60/Baseline_555/RELATION_TWO+LABEL_SMOOTH+AGG+FREEZE_BACKBONE"
@@ -214,3 +219,7 @@ TEST:
     DURING_TRAIN: 1000   # the period this hook is run, or 0 to not run during training. The hook will always run in the end of training.
     NUM_ITER: 100   # number of iterations used to compute the precise statistics.
   EVAL_PERIOD: 5000
+  PLOT_PR:
+    ENABLED: False
+    PLOT_PR_CONF: 0.3
+    PLOT_PR_THRESHOLD: 0.1

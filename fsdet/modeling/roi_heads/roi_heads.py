@@ -47,7 +47,8 @@ from fsdet.layers import cat
 from fsdet.utils.visualizer import Visualizer
 from fsdet.data.detection_utils import convert_image_to_rgb
 
-from fsdet.modeling.query_support import query_support_module
+from fsdet.modeling.query_support import query_support_module, query_support_module_no_gem, query_support_module_origin
+
 
 ROI_HEADS_REGISTRY = Registry("ROI_HEADS")
 ROI_HEADS_REGISTRY.__doc__ = """
@@ -880,13 +881,30 @@ class StandardROIHeads(ROIHeads):
             cfg, self.box_head.output_size, self.num_classes, self.cls_agnostic_bbox_reg
         )
 
-        self.query_support_module = query_support_module(cfg.MODEL.ROI_HEADS.DIM_IN,
+        # self.query_support_module = query_support_module(cfg.MODEL.ROI_HEADS.DIM_IN,
+        #                                                  cfg.MODEL.ROI_HEADS.FEAT_DIM,
+        #                                                  cfg.MODEL.ROI_HEADS.OUT_DIM,
+        #                                                  cfg.MODEL.ROI_HEADS.TRAIN_AUX_WHICH_P,
+        #                                                  cfg.MODEL.ROI_HEADS.WHICH_POOLING,
+        #                                                  cfg.OUTPUT_DIR,
+        #                                                  cfg.MODEL.ROI_HEADS.CROSS_ENTROPY,
+        #                                                  cfg.MODEL.ROI_HEADS.TEMPERATURE,
+        #                                                  cfg.MODEL.ROI_HEADS.IOU_THRESHOLD)
+        # self.query_support_module_no_gem = query_support_module_no_gem(cfg.MODEL.ROI_HEADS.DIM_IN,
+        #                                                  cfg.MODEL.ROI_HEADS.FEAT_DIM,
+        #                                                  cfg.MODEL.ROI_HEADS.OUT_DIM,
+        #                                                  cfg.MODEL.ROI_HEADS.TRAIN_AUX_WHICH_P,
+        #                                                  cfg.MODEL.ROI_HEADS.WHICH_POOLING,
+        #                                                  cfg.OUTPUT_DIR,
+        #                                                  cfg.MODEL.ROI_HEADS.CROSS_ENTROPY,
+        #                                                  cfg.MODEL.ROI_HEADS.TEMPERATURE,
+        #                                                  cfg.MODEL.ROI_HEADS.IOU_THRESHOLD)
+        self.query_support_module_origin = query_support_module_origin(cfg.MODEL.ROI_HEADS.DIM_IN,
                                                          cfg.MODEL.ROI_HEADS.FEAT_DIM,
                                                          cfg.MODEL.ROI_HEADS.OUT_DIM,
                                                          cfg.MODEL.ROI_HEADS.TRAIN_AUX_WHICH_P,
                                                          cfg.MODEL.ROI_HEADS.WHICH_POOLING,
-                                                         cfg.OUTPUT_DIR,
-                                                         cfg.MODEL.ROI_HEADS.CROSS_ENTROPY)
+                                                         cfg.OUTPUT_DIR,)
 
     # def forward(self, images, features, proposals, targets=None, use_mixup=False, lambda_=None):
     #     """
@@ -984,7 +1002,10 @@ class StandardROIHeads(ROIHeads):
         if features_aux is not None:
             features_aux_list = [features_aux[f] for f in self.in_features]
             box_aux_features = self.box_pooler(features_aux_list, [i._fields['gt_boxes'] for i in gt_instances_aux])
-            loss, box_features_ = self.query_support_module(box_features, box_aux_features, proposals, gt_instances_aux)
+            # loss, box_features_ = self.query_support_module(box_features, box_aux_features, proposals, gt_instances_aux)
+            # loss, box_features_ = self.query_support_module_no_gem(box_features, box_aux_features, proposals, gt_instances_aux)
+            loss, box_features_ = self.query_support_module_origin(box_features, box_aux_features, proposals, gt_instances_aux)
+
         if box_features_ is None:
             box_features = self.box_head(box_features)  # [None, FC_DIM]
         else:
@@ -1004,7 +1025,6 @@ class StandardROIHeads(ROIHeads):
             self.roi_focal_alpha,
             self.roi_focal_gamma
         )
-
 
 
         if self.training:

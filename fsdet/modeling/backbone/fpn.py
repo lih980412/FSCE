@@ -1,10 +1,17 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import math
+import torch
 import fvcore.nn.weight_init as weight_init
 import torch.nn.functional as F
 from torch import nn
 
-from fsdet.layers import Conv2d, ShapeSpec, get_norm
+from fsdet.layers import (
+    Conv2d,
+    ShapeSpec,
+    get_norm,
+    DeformConv,
+    ModulatedDeformConv,
+)
 
 from .backbone import Backbone
 from .build import BACKBONE_REGISTRY
@@ -25,7 +32,7 @@ class FPN(Backbone):
     """
 
     def __init__(
-        self, bottom_up, in_features, out_channels, norm="", top_block=None, fuse_type="sum"
+        self, bottom_up, in_features, out_channels, norm="", top_block=None, fuse_type="sum", deform_conv=False, deform_modulated=False
     ):
         """
         Args:
@@ -61,6 +68,20 @@ class FPN(Backbone):
         _assert_strides_are_log2_contiguous(in_strides)
         lateral_convs = []
         output_convs = []
+        output_convs_offset = []
+
+        self.deform_conv = deform_conv
+        self.deform_modulated = deform_modulated
+        if deform_conv:
+            print("Using deform FPN ...")
+            deform_num_groups = 1
+            if deform_modulated:
+                deform_conv_op = ModulatedDeformConv
+                # offset channels are 2 or 3 (if with modulated) * kernel_size * kernel_size
+                offset_channels = 27
+            else:
+                deform_conv_op = DeformConv
+                offset_channels = 18
 
         use_bias = norm == ""
         for idx, in_channels in enumerate(in_channels):
@@ -70,15 +91,38 @@ class FPN(Backbone):
             lateral_conv = Conv2d(
                 in_channels, out_channels, kernel_size=1, bias=use_bias, norm=lateral_norm
             )
-            output_conv = Conv2d(
-                out_channels,
-                out_channels,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                bias=use_bias,
-                norm=output_norm,
-            )
+
+            if deform_conv:
+                offset_conv = Conv2d(
+                    out_channels,
+                    offset_channels * deform_num_groups,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                )
+                output_conv = deform_conv_op(
+                    out_channels,
+                    out_channels,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=False,
+                    deformable_groups=deform_num_groups,
+                    norm=output_norm,
+                )
+                nn.init.constant_(offset_conv.weight, 0)
+                nn.init.constant_(offset_conv.bias, 0)
+            else:
+                output_conv = Conv2d(
+                    out_channels,
+                    out_channels,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=use_bias,
+                    norm=output_norm,
+                )
+
             weight_init.c2_xavier_fill(lateral_conv)
             weight_init.c2_xavier_fill(output_conv)
             stage = int(math.log2(in_strides[idx]))
@@ -87,6 +131,10 @@ class FPN(Backbone):
 
             lateral_convs.append(lateral_conv)
             output_convs.append(output_conv)
+            if deform_conv:
+                output_convs_offset.append(offset_conv)
+                self.add_module("fpn_output{}_offset".format(stage), offset_conv)
+        self.output_convs_offset = output_convs_offset[::-1]
         # Place convs into top-down order (from low to high resolution)
         # to make the top-down computation in forward clearer.
         self.lateral_convs = lateral_convs[::-1]
@@ -130,16 +178,48 @@ class FPN(Backbone):
         x = [bottom_up_features[f] for f in self.in_features[::-1]]     # x[0]是最小的特征图
         results = []
         prev_features = self.lateral_convs[0](x[0])                     # lateral_convs是1*1卷积，output_convs是3*3卷积
-        results.append(self.output_convs[0](prev_features))             # 这两行的意思是先将最小的特征图
-        for features, lateral_conv, output_conv in zip(
-            x[1:], self.lateral_convs[1:], self.output_convs[1:]
-        ):
-            top_down_features = F.interpolate(prev_features, scale_factor=2, mode="nearest")
-            lateral_features = lateral_conv(features)
-            prev_features = lateral_features + top_down_features
-            if self._fuse_type == "avg":
-                prev_features /= 2
-            results.insert(0, output_conv(prev_features))
+        if self.deform_conv:
+            if self.deform_modulated:
+                offset_mask = self.output_convs_offset[0](prev_features)
+                offset_x, offset_y, mask = torch.chunk(offset_mask, 3, dim=1)
+                offset = torch.cat((offset_x, offset_y), dim=1)
+                mask = mask.sigmoid()
+                results.append(self.output_convs[0](prev_features, offset, mask))
+            else:
+                offset = self.output_convs_offset[0](prev_features)
+                results.append(self.output_convs[0](prev_features, offset))
+
+            for features, lateral_conv, output_conv, offset_conv in zip(
+                x[1:], self.lateral_convs[1:], self.output_convs[1:], self.output_convs_offset[1:]
+            ):
+                top_down_features = F.interpolate(prev_features, scale_factor=2, mode="nearest")
+                lateral_features = lateral_conv(features)
+                prev_features = lateral_features + top_down_features
+                if self._fuse_type == "avg":
+                    prev_features /= 2
+
+                if self.deform_modulated:
+                    offset_mask = offset_conv(prev_features)
+                    offset_x, offset_y, mask = torch.chunk(offset_mask, 3, dim=1)
+                    offset = torch.cat((offset_x, offset_y), dim=1)
+                    mask = mask.sigmoid()
+                    prev_features = output_conv(prev_features, offset, mask)
+                else:
+                    offset = offset_conv(prev_features)
+                    prev_features = output_conv(prev_features, offset)
+                results.insert(0, prev_features)
+
+        else:
+            results.append(self.output_convs[0](prev_features))             # 这两行的意思是先将最小的特征图
+            for features, lateral_conv, output_conv in zip(
+                x[1:], self.lateral_convs[1:], self.output_convs[1:]
+            ):
+                top_down_features = F.interpolate(prev_features, scale_factor=2, mode="nearest")
+                lateral_features = lateral_conv(features)
+                prev_features = lateral_features + top_down_features
+                if self._fuse_type == "avg":
+                    prev_features /= 2
+                results.insert(0, output_conv(prev_features))
 
 
 
@@ -505,6 +585,9 @@ def build_dla_fpn_backbone(cfg, input_shape: ShapeSpec):
         norm=cfg.MODEL.FPN.NORM,
         top_block=LastLevelMaxPool(),
         fuse_type=cfg.MODEL.FPN.FUSE_TYPE,
+        deform_conv=cfg.MODEL.FPN.DEFORM_CONV,
+        deform_modulated=cfg.MODEL.FPN.DEFORM_MODULATED,
+
     )
     return backbone
 

@@ -299,7 +299,7 @@ class query_support_module_origin(nn.Module):
     Region Proposal Network, introduced by the Faster R-CNN paper.
     """
 
-    def __init__(self, dim_in, feat_dim, out_dim, which_p, which_pooling, output="", temperature=0.2):
+    def __init__(self, dim_in, feat_dim, which_p, which_pooling, output="", temperature=0.2):
         """
 
         :param which_p: choose which layer in the 'aux_features'
@@ -323,9 +323,9 @@ class query_support_module_origin(nn.Module):
         self.fuse = OrthogonalFusion()
 
         self.head = nn.Sequential(
-            nn.Linear(dim_in, feat_dim),
+            nn.Linear(dim_in, dim_in),
             nn.ReLU(inplace=True),
-            nn.Linear(feat_dim, out_dim),
+            nn.Linear(dim_in, feat_dim),
         )
         for layer in self.head:
             if isinstance(layer, nn.Linear):

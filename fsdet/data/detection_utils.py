@@ -345,8 +345,8 @@ def build_transform_gen(cfg, is_train, aux=None):
     logger = logging.getLogger(__name__)
     tfm_gens = []
     'moli、dibei 磨砺图pretrain和低倍项目用这里，追求精度'
-    # if cfg.INPUT.ResizeShortestEdge:
-    #     tfm_gens.append(T.ResizeShortestEdge(min_size, max_size, sample_style))
+    if cfg.INPUT.ResizeShortestEdge:
+        tfm_gens.append(T.ResizeShortestEdge(min_size, max_size, sample_style))
 
     if cfg.INPUT.RESIZE:
         assert cfg.INPUT.RESIZE_VAL != (0, 0), "please specified size"
@@ -354,7 +354,7 @@ def build_transform_gen(cfg, is_train, aux=None):
 
     if is_train:
         'few-shot 焊缝底片小样本实验用这里，保持实验设定一致'
-        tfm_gens.append(T.ResizeShortestEdge(min_size, max_size, sample_style))
+        # tfm_gens.append(T.ResizeShortestEdge(min_size, max_size, sample_style))
 
         # if aux:
         #     tfm_gens.append(T.Resize((700, 900)))

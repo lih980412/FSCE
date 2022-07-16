@@ -66,7 +66,6 @@ class SupConLoss(nn.Module):
         self.temperature = temperature
         self.iou_threshold = iou_threshold
         self.reweight_func = reweight_func
-        self.mlp = MLP(1024)
 
     def forward(self, features, labels, ious):
         """
@@ -103,7 +102,7 @@ class SupConLoss(nn.Module):
         loss = -per_label_log_prob
 
         # coef = self._get_reweight_func(self.reweight_func)(ious)
-        coef = self._get_reweight_func(self.reweight_func, self.mlp)(ious)
+        coef = self._get_reweight_func(self.reweight_func)(ious)
         coef = coef[keep]
         # loss = loss * coef
         loss = loss * torch.abs_(coef)
@@ -111,7 +110,7 @@ class SupConLoss(nn.Module):
 
     @staticmethod
     # def _get_reweight_func(option):
-    def _get_reweight_func(option, mlp):
+    def _get_reweight_func(option):
         def trivial(iou):
             return torch.ones_like(iou)
         def exp_decay(iou):
@@ -127,8 +126,6 @@ class SupConLoss(nn.Module):
             return linear
         elif option == 'exp':
             return exp_decay
-        elif option == 'mlp':
-            return mlp_func
 
 
 

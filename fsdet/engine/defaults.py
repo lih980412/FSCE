@@ -179,12 +179,19 @@ class DefaultPredictor:
         self.model.eval()
         self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
 
+
+        # self.model = torch.load(torch.)
         checkpointer = DetectionCheckpointer(self.model)
         checkpointer.load(cfg.MODEL.WEIGHTS)
 
-        self.transform_gen = T.ResizeShortestEdge(
-            [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], cfg.INPUT.MAX_SIZE_TEST
-        )
+        if cfg.INPUT.ResizeShortestEdge:
+            self.transform_gen = T.ResizeShortestEdge(
+                [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], cfg.INPUT.MAX_SIZE_TEST
+            )
+        if cfg.INPUT.RESIZE:
+            self.transform_gen = T.Resize(
+                cfg.INPUT.RESIZE_VAL
+            )
 
         self.input_format = cfg.INPUT.FORMAT
         assert self.input_format in ["RGB", "BGR"], self.input_format
@@ -204,7 +211,7 @@ class DefaultPredictor:
             original_image = original_image[:, :, ::-1]
         height, width = original_image.shape[:2]
         image = self.transform_gen.get_transform(original_image).apply_image(original_image)
-        image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
+        image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1) / 255.)
 
         inputs = {"image": image, "height": height, "width": width}
         predictions = self.model([inputs])[0]
